@@ -1,0 +1,32 @@
+# primary has lavish-axi-host=primary.tailnet:4387 and crew-harness=codex
+# smA has its own lavish-axi-host=smA.tailnet:4387; smB has no lavish-axi-host
+$ FM_HOME=$LAB bin/fm-config-push.sh
+config-push: /tmp/fm-lab.wXr6Tb -> live secondmate homes
+secondmate smA (/tmp/fm-labroot.73hxzm/smA):
+  crew-dispatch.json: unchanged
+  crew-harness: pushed
+  backlog-backend: unchanged
+  backend: unchanged
+  herdr-presentation-spaces: unchanged
+  startup-memory-budget: unchanged
+  trace-context: unchanged - session-scoped
+  launch-env-allowlist: unchanged
+  claude-permission-mode: unchanged
+  data/captain-shared.md: unchanged
+CONFIG_REREAD: secondmate smA: send failed: error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+secondmate smB (/tmp/fm-labroot.73hxzm/smB):
+  crew-dispatch.json: unchanged
+  crew-harness: pushed
+  backlog-backend: unchanged
+  backend: unchanged
+  herdr-presentation-spaces: unchanged
+  startup-memory-budget: unchanged
+  trace-context: unchanged - session-scoped
+  launch-env-allowlist: unchanged
+  claude-permission-mode: unchanged
+  data/captain-shared.md: unchanged
+CONFIG_REREAD: secondmate smB: send failed: error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+exit=1
+--- after push ---
+[smA] crew-harness=codex lavish-axi-host=smA.tailnet:4387
+[smB] crew-harness=codex lavish-axi-host=ABSENT
