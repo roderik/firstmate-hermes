@@ -1,0 +1,14 @@
+bash: 3.2.57(1)-release
+BASHPID set? 
+== BEFORE (base 49a218b) ==
+/base/fm-timeout-lib.sh: line 209: BASHPID: unbound variable
+rc=127
+== AFTER (0ea12e6) ==
+hello-from-worker
+rc=0
+== AFTER intent repro: true ==
+rc=0
+== AFTER timeout still enforced ==
+rc=124 elapsed=2s
+== AFTER status passthrough ==
+rc=7

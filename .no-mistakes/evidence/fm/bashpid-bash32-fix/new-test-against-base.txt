@@ -1,0 +1,3 @@
+ok - fm_exec_timed passes a command's status and output through unchanged
+/tmp/tmp.M2ybAmCTsH/bin/fm-timeout-lib.sh: line 209: BASHPID: unbound variable
+not ok - the bounded command failed without BASHPID under set -u (rc=1)
