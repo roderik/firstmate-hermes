@@ -1,0 +1,66 @@
+== Scenario A: secondmate home has NO own lavish-axi-host; primary sets primary-host.example:4387
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+config-push: <LAB> -> live secondmate homes
+secondmate sm1 (<SM>):
+  crew-dispatch.json: unchanged
+  dispatch-never-send: unchanged
+  crew-harness: pushed
+  backlog-backend: unchanged
+  backend: unchanged
+  herdr-presentation-spaces: unchanged
+  startup-memory-budget: unchanged
+  trace-context: unchanged - session-scoped
+  launch-env-allowlist: unchanged
+  claude-permission-mode: unchanged
+  keep-ai-trailers: unchanged
+  data/captain-shared.md: unchanged
+CONFIG_REREAD: secondmate sm1: send failed: error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+--- after push A
+  SM config/lavish-axi-host = <absent>
+  SM config/crew-harness = codex
+== Scenario B: secondmate sets its own per-machine address; primary changes its own
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+config-push: <LAB> -> live secondmate homes
+secondmate sm1 (<SM>):
+  crew-dispatch.json: unchanged
+  dispatch-never-send: unchanged
+  crew-harness: pushed
+  backlog-backend: unchanged
+  backend: unchanged
+  herdr-presentation-spaces: unchanged
+  startup-memory-budget: unchanged
+  trace-context: unchanged - session-scoped
+  launch-env-allowlist: unchanged
+  claude-permission-mode: unchanged
+  keep-ai-trailers: unchanged
+  data/captain-shared.md: unchanged
+CONFIG_REREAD: secondmate sm1: send failed: error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+--- after push B
+  SM config/lavish-axi-host = sm-host.example:4387
+  SM config/crew-harness = claude
+== Scenario C: primary removes its lavish-axi-host (absence mirror must not delete the secondmate's own)
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+config-push: <LAB> -> live secondmate homes
+secondmate sm1 (<SM>):
+  crew-dispatch.json: unchanged
+  dispatch-never-send: unchanged
+  crew-harness: unchanged
+  backlog-backend: unchanged
+  backend: unchanged
+  herdr-presentation-spaces: unchanged
+  startup-memory-budget: unchanged
+  trace-context: unchanged - session-scoped
+  launch-env-allowlist: unchanged
+  claude-permission-mode: unchanged
+  keep-ai-trailers: unchanged
+  data/captain-shared.md: unchanged
+CONFIG_REREAD: secondmate sm1: send failed: error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+--- after push C
+  SM config/lavish-axi-host = sm-host.example:4387
+  SM config/crew-harness = claude

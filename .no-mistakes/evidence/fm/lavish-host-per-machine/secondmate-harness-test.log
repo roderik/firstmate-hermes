@@ -27,6 +27,7 @@ ok - B9 bootstrap sweep defers new inherited config until the home ignores it
 ok - B10 bootstrap sweep materializes and inherits the startup-memory default while fast-forwarding
 ok - B12b backend inheritance: present values and primary absence converge exactly
 ok - C2b spawn: config/claude-permission-mode=auto reaches a Claude secondmate launch
+ok - claude secondmate launches cover the parent-home steering inbox in auto and bypass modes
 ok - B12c claude-permission-mode inheritance: present values and primary absence converge exactly
 ok - B12c presentation inheritance: the primary default converges on, and only an explicit opt-out propagates off
 ok - B11 bootstrap sweep surfaces config propagation failures
@@ -50,3 +51,7 @@ ok - B19 bootstrap respawns before inherited-config reread
 ok - B25 spawn quarantines stale rereads without blocking relaunch
 ok - B24 bootstrap detect-only mode remains filesystem read-only
 # all fm-secondmate-harness tests passed
+
+real	5m39.117s
+user	2m2.621s
+sys	2m31.812s

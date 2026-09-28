@@ -1,0 +1,15 @@
+== Scenario A: secondmate home has NO own lavish-axi-host; primary sets primary-host.example:4387
+  lavish-axi-host: pushed
+--- after push A
+  SM config/lavish-axi-host = primary-host.example:4387
+  SM config/crew-harness = codex
+== Scenario B: secondmate sets its own per-machine address; primary changes its own
+  lavish-axi-host: pushed
+--- after push B
+  SM config/lavish-axi-host = primary-host-2.example:4387
+  SM config/crew-harness = claude
+== Scenario C: primary removes its lavish-axi-host (absence mirror must not delete the secondmate's own)
+  lavish-axi-host: pushed - mirrored primary absence
+--- after push C
+  SM config/lavish-axi-host = <absent>
+  SM config/crew-harness = claude
