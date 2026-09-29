@@ -395,6 +395,27 @@ if ! fm_backlog_meta_spawn_gen_optional "$META" "$STATE"; then
 fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
 
+# The project's declared ready check runs before the control lock so a long
+# check cannot hold the task's lock. It is skipped only when the forge head is
+# the head bin/fm-pr-check.sh already checked and recorded.
+READY_KIND=$(grep '^kind=' "$META" | tail -1 | cut -d= -f2- || true)
+if [ "${READY_KIND:-ship}" = ship ]; then
+  READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
+  READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+  READY_HEAD=
+  if [ "$PROVIDER" = github ] && [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && command -v gh >/dev/null 2>&1 \
+    && READY_REMOTE=$(cd "$READY_WT" && gh pr view "$URL" --json headRefOid -q .headRefOid 2>/dev/null) \
+    && fm_pr_head_valid "$READY_REMOTE"; then
+    READY_HEAD=$READY_REMOTE
+  fi
+  if [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ] \
+    && ! { [ -n "$READY_HEAD" ] && [ "$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)" = "$URL" ] \
+      && [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" = "$READY_HEAD" ]; }; then
+    "$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" ${READY_HEAD:+"$READY_HEAD"} >/dev/null \
+      || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+  fi
+fi
+
 MERGE_CONTROL_LOCK=
 MERGE_META_LOCK=
 merge_control_cleanup() {

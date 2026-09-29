@@ -1752,6 +1752,41 @@ test_gitlab_url_resolves_and_merges() {
   pass "fm-pr-merge merges a GitLab merge request through glab instead of refusing it"
 }
 
+# A GitLab merge has no recorded head to key a skip on, so the project's ready
+# check runs at merge time. It must run before the task's control lock is
+# taken, and a failing check must refuse the merge before glab is asked.
+test_gitlab_merge_runs_ready_check_outside_control_lock() {
+  local case_dir rc
+  case_dir=$(make_gitlab_case gitlab-ready-check)
+  mkdir -p "$case_dir/project/.firstmate"
+  cat > "$case_dir/project/.firstmate/ready-check" <<SH
+#!/usr/bin/env bash
+if [ -e "$case_dir/state/.control-task-x1.lock" ]; then echo held; else echo free; fi >> "$case_dir/ready.log"
+[ ! -e "$case_dir/ready.fail" ]
+SH
+  chmod +x "$case_dir/project/.firstmate/ready-check"
+
+  : > "$case_dir/ready.fail"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "gitlab-ready-check: a failing ready check did not refuse the merge"
+  assert_grep 'project ready check did not pass' "$case_dir/stderr" \
+    "gitlab-ready-check: the refusal did not name the ready check"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "gitlab-ready-check: glab merged despite a failing ready check"
+
+  rm -f "$case_dir/ready.fail" "$case_dir/ready.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "gitlab-ready-check: a passing ready check should allow the merge"
+  [ "$(cat "$case_dir/ready.log")" = free ] \
+    || fail "gitlab-ready-check: the ready check ran $(tr '\n' ' ' < "$case_dir/ready.log")times or under the control lock"
+  pass "fm-pr-merge runs the project ready check once, outside the control lock, and refuses on failure"
+}
+
 test_gitlab_host_comes_from_the_url() {
   local case_dir rc host path project_url url
   host=gl.self-hosted.example
@@ -2402,6 +2437,7 @@ test_method_equals_merge_method_not_overridden
 test_parses_pr_url_for_gh_axi
 test_github_still_forwards_sha_arg
 test_gitlab_url_resolves_and_merges
+test_gitlab_merge_runs_ready_check_outside_control_lock
 test_gitlab_host_comes_from_the_url
 test_gitlab_imposes_no_merge_method
 test_gitlab_extra_args_forwarded

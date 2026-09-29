@@ -56,7 +56,7 @@ fi
 [ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null | head -1)" ] \
   || { echo 'ready-check: worktree has uncommitted or untracked changes; commit them before handoff' >&2; exit 1; }
 [ -z "$HEAD_SHA" ] || [ "$(git -C "$WORKTREE" rev-parse --verify --quiet 'HEAD^{commit}' || true)" = "$HEAD_SHA" ] \
-  || { echo "ready-check: worktree HEAD is not the handed-off head $HEAD_SHA" >&2; exit 1; }
+  || { echo "ready-check: worktree HEAD is not the handed-off head $HEAD_SHA; fetch and check it out before handoff" >&2; exit 1; }
 printf 'ready-check: running %s\n' "${CMD[*]}" >&2
 rc=0
 (cd "$WORKTREE" && fm_run_timed "$TIMEOUT" "${CMD[@]}") || rc=$?
