@@ -3143,6 +3143,32 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
       fi
     fi
   fi
+  # Proof-producing briefs may declare host capabilities on one line, for
+  # example `Proof surfaces: browser, attachments`. Check them before any
+  # endpoint or worktree allocation so a missing capability is reported at
+  # dispatch.
+  PROOF_SURFACES=$(sed -n \
+    -e 's/^[[:space:]]*Proof surfaces:[[:space:]]*//p' \
+    -e 's/^[[:space:]]*Required host capabilities:[[:space:]]*//p' \
+    "$BRIEF" | head -n 1)
+  if [ -n "$PROOF_SURFACES" ]; then
+    OLD_IFS=$IFS
+    IFS=','
+    # shellcheck disable=SC2206
+    proof_surface_list=($PROOF_SURFACES)
+    IFS=$OLD_IFS
+    for proof_surface in "${proof_surface_list[@]}"; do
+      proof_surface=$(printf '%s' "$proof_surface" | tr -d '[:space:]')
+      [ -n "$proof_surface" ] || continue
+      case "$proof_surface" in browser|attachments|pool|seed|ci) ;; *) echo "error: unknown proof surface '$proof_surface' in $BRIEF" >&2; exit 1 ;; esac
+      capability_args=(--surface "$proof_surface")
+      [ "$proof_surface" = seed ] && capability_args+=(--project "$PROJ_ABS")
+      "$SCRIPT_DIR/fm-capability-check.sh" "${capability_args[@]}" || {
+        echo "error: required host capability '$proof_surface' is unavailable; refusing dispatch before endpoint creation" >&2
+        exit 1
+      }
+    done
+  fi
   # Use the existing launch-brief overlay for every worker kind, including
   # pre-scope briefs and relaunches. Charters never enter this worker path.
   SOURCE_BRIEF=$BRIEF
