@@ -67,6 +67,7 @@ install_pi_branch_extension_fixture() {
 JSON
   cat > "$repo/node_modules/@earendil-works/pi-coding-agent/index.js" <<'JS'
 import { writeFileSync } from "node:fs";
+import { Text } from "@earendil-works/pi-tui";
 
 export function getAgentDir() {
   return "/stub-agent-dir";
@@ -81,6 +82,9 @@ export function keyHint(_keybinding, description) {
 }
 
 export class ToolExecutionComponent {
+  createCallFallback() {
+    return new Text(this.toolName, 0, 0);
+  }
   updateResult(result) {
     this.result = result;
   }

@@ -4411,7 +4411,17 @@ if (!messages || !tree) process.exit(1);
 if (!/<div class="user-message"[^>]*>[\s\S]*Show a deterministic tool example\./.test(messages)) process.exit(1);
 if (!/<div class="assistant-message"[^>]*>[\s\S]*The deterministic tool example is complete\./.test(messages)) process.exit(1);
 if (messages.includes('<div class="hook-message"')) process.exit(1);
-if (messages.includes("[firstmate-synthetic-input]")) process.exit(1);
+// Since Pi 0.99 the export keeps display:false custom messages as entries its
+// own stylesheet hides until the reader asks for hidden messages. Those are
+// outside the visible conversation only while that default holds.
+const entries = messages.split(/(?=<div class="[^"]*" id="entry-)/);
+const hiddenEntries = entries.filter((entry) => /^<div class="hook-message hook-message-hidden"/.test(entry));
+if (hiddenEntries.length > 0) {
+  if (/<body[^>]*class="[^"]*\bshow-hidden-messages\b/.test(dom)) process.exit(1);
+  if (!/body:not\(\.show-hidden-messages\)\s+\.hook-message-hidden\s*\{\s*display:\s*none;?\s*\}/.test(dom)) process.exit(1);
+}
+const visibleMessages = entries.filter((entry) => !hiddenEntries.includes(entry)).join("");
+if (visibleMessages.includes("[firstmate-synthetic-input]")) process.exit(1);
 for (const current of ["CURRENT_WATCHER_E2E", "CURRENT_TURN_END_E2E", "CURRENT_AWAY_E2E", "CURRENT_FROM_FIRSTMATE_E2E", "CURRENT_LAUNCH_BRIEF_E2E"]) {
   if (!messages.includes(current)) process.exit(1);
 }

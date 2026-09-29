@@ -2150,6 +2150,19 @@ ${context.command}
     return stockOutcomesPreviewLines ?? undefined;
   };
 
+  // Pi's own fallback call header, so the Calm-off row matches stock on every
+  // Pi version: since Pi 0.99 stock appends the call arguments to the title.
+  const stockOutcomesCallHeader = (
+    toolName: string,
+    args: unknown,
+    context: Parameters<NonNullable<ToolDefinition["renderCall"]>>[2],
+  ): Text => {
+    const { createCallFallback } = ToolExecutionComponent.prototype as unknown as {
+      createCallFallback: (this: { toolName: string; args: unknown; expanded: boolean }) => Text;
+    };
+    return createCallFallback.call({ toolName, args, expanded: context.expanded });
+  };
+
   type OutcomesToolShellState = {
     shell?: Box;
     call?: Text;
@@ -2184,11 +2197,11 @@ ${context.command}
       recent: Type.Optional(Type.Number({ description: "How many most-recent outcomes to read (default 20)" })),
     }),
     renderShell: "self",
-    renderCall: (_args, theme, context) => {
+    renderCall: (args, theme, context) => {
       if (calmPresentation.stockExportRendering) throw new Error("Use Pi stock export rendering");
       if (calmHides("assistant-tool-call")) return new Container();
       const shellState = context.state as OutcomesToolShellState;
-      shellState.call = new Text(theme.fg("toolTitle", theme.bold("fm_branch_outcomes")), 0, 0);
+      shellState.call = stockOutcomesCallHeader("fm_branch_outcomes", args, context);
       return refreshOutcomesToolShell(shellState, theme, context);
     },
     renderResult: (result, options, theme, context) => {
@@ -2246,11 +2259,11 @@ ${context.command}
       through: Type.Number({ description: "The highest outcome sequence number this conversation has processed" }),
     }),
     renderShell: "self",
-    renderCall: (_args, theme, context) => {
+    renderCall: (args, theme, context) => {
       if (calmPresentation.stockExportRendering) throw new Error("Use Pi stock export rendering");
       if (calmHides("assistant-tool-call")) return new Container();
       const shellState = context.state as OutcomesToolShellState;
-      shellState.call = new Text(theme.fg("toolTitle", theme.bold("fm_branch_processed")), 0, 0);
+      shellState.call = stockOutcomesCallHeader("fm_branch_processed", args, context);
       return refreshOutcomesToolShell(shellState, theme, context);
     },
     renderResult: (result, _options, theme, context) => {
