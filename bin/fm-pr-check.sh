@@ -142,7 +142,9 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
-if [ "${KIND:-ship}" = ship ] && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT"); then
+if [ "${KIND:-ship}" = ship ] \
+  && ! { [ "${FM_PR_CHECK_MERGE:-}" = 1 ] && grep -qxF "pr=$URL" "$META"; } \
+  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT"); then
   echo "error: $GATE_REASON" >&2
   exit 1
 fi
