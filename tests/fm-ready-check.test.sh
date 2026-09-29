@@ -43,10 +43,29 @@ mkdir -p "$DIR/legacy"
 out=$("$SCRIPT" "$DIR/legacy" "$DIR/wt") || fail "undeclared check should preserve legacy behavior"
 assert_contains "$out" 'not declared' "undeclared check was not reported"
 
+mkdir -p "$DIR/gitwt" "$DIR/gitproj/.firstmate"
+git -C "$DIR/gitwt" init -q
+printf '#!/usr/bin/env bash\ntest -f ready.ok\n' > "$DIR/gitproj/.firstmate/ready-check"
+chmod +x "$DIR/gitproj/.firstmate/ready-check"
+: > "$DIR/gitwt/committed"
+git -C "$DIR/gitwt" add committed
+git -C "$DIR/gitwt" -c user.name=t -c user.email=t@t commit -qm base
+COMMITTED_HEAD=$(git -C "$DIR/gitwt" rev-parse HEAD)
+: > "$DIR/gitwt/ready.ok"
+if "$SCRIPT" "$DIR/gitproj" "$DIR/gitwt" >/dev/null 2>&1; then
+  fail "a ready check passed on an uncommitted fix in the worktree"
+fi
+git -C "$DIR/gitwt" add ready.ok
+git -C "$DIR/gitwt" -c user.name=t -c user.email=t@t commit -qm fix
+"$SCRIPT" "$DIR/gitproj" "$DIR/gitwt" >/dev/null 2>&1 || fail "a clean committed worktree should pass"
+if "$SCRIPT" "$DIR/gitproj" "$DIR/gitwt" "$COMMITTED_HEAD" >/dev/null 2>&1; then
+  fail "a ready check ran against a worktree HEAD other than the handed-off head"
+fi
+
 # shellcheck source=bin/fm-dod-lib.sh
 . "$ROOT/bin/fm-dod-lib.sh"
 printf '#!/usr/bin/env bash\necho line-one\necho line-two\nexit 3\n' > "$DIR/project/.firstmate/ready-check"
 reason=$(fm_dod_ready_check "$DIR/project" "$DIR/wt") && fail "failing ready check was accepted"
 [ "$(printf '%s\n' "$reason" | wc -l | tr -d ' ')" = 1 ] || fail "ready check reason spans several lines: $reason"
 assert_contains "$reason" 'project ready check failed' "ready check reason missing"
-pass "project-declared ready checks gate pass, failure, timeout, worker edits, package scripts, and legacy projects"
+pass "project-declared ready checks gate pass, failure, timeout, worker edits, dirty worktrees, head mismatches, package scripts, and legacy projects"

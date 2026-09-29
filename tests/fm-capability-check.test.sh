@@ -31,4 +31,6 @@ for surface in seed attachments; do
   assert_contains "$out" "$surface ready" "$surface result missing"
   if "$SCRIPT" --surface "$surface" --project "$DIR/other" >/dev/null 2>&1; then fail "missing $surface declaration was accepted"; fi
 done
-pass "capability preflight probes pool, ci, seed, and attachments inside the project and refuses absent declarations"
+printf '#!/usr/bin/env bash\nsleep 30\n' > "$DIR/project/.firstmate/seed-check"
+if FM_CAPABILITY_CHECK_TIMEOUT=1 "$SCRIPT" --surface seed --project "$DIR/project" >/dev/null 2>&1; then fail "a hung seed-check was accepted"; fi
+pass "capability preflight probes pool, ci, seed, and attachments inside the project and refuses absent declarations and hung probes"

@@ -142,9 +142,12 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
+READY_HEAD=
+[ -z "$PR_HEAD" ] || fm_dod_forge_head_is_named_head "$MODE" || READY_HEAD=$PR_HEAD
 if [ "${KIND:-ship}" = ship ] \
-  && ! { [ "${FM_PR_CHECK_MERGE:-}" = 1 ] && grep -qxF "pr=$URL" "$META"; } \
-  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT"); then
+  && ! { [ "${FM_PR_CHECK_MERGE:-}" = 1 ] && [ -n "$PR_HEAD" ] \
+    && [ "$(fm_dod_meta_value "$META" pr)" = "$URL" ] && [ "$(fm_dod_meta_value "$META" pr_head)" = "$PR_HEAD" ]; } \
+  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$READY_HEAD"); then
   echo "error: $GATE_REASON" >&2
   exit 1
 fi
