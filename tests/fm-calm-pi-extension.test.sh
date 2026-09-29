@@ -92,7 +92,7 @@ find_chrome() {
 # dependencies, which are the start-up surfaces that fail on a runner; neither
 # changes the rendered DOM of a local file.
 render_export_dom() {
-  local chrome=$1 source_file=$2 out_file=$3 pi_version=$4
+  local chrome=$1 source_file=$2 out_file=$3 pi_version=$4 ready_marker=${5:-</html>}
   local attempt pid status wait_count wait_limit reap_wait log profile report timed_out
   local -a profile_arg
   report="$TMP_ROOT/chrome-render-report.txt"
@@ -127,7 +127,7 @@ render_export_dom() {
       --no-sandbox \
       --disable-dev-shm-usage \
       --disable-background-networking \
-      --virtual-time-budget=5000 \
+      --virtual-time-budget=2000 \
       --dump-dom \
       "file://$source_file" >"$out_file" 2>"$log" &
     pid=$!
@@ -157,7 +157,8 @@ render_export_dom() {
     fi
     status=0
     wait "$pid" 2>/dev/null || status=$?
-    grep -Fq '</html>' "$out_file" 2>/dev/null && return 0
+    grep -Fq '</html>' "$out_file" 2>/dev/null \
+      && grep -Fq -- "$ready_marker" "$out_file" && return 0
     printf 'attempt %s: exit=%s timed_out=%s bytes=%s stderr=%s\n' \
       "$attempt" "$status" "$timed_out" "$(wc -c <"$out_file" | tr -d ' ')" \
       "$(tail -c 400 "$log" 2>/dev/null | tr '\n' ' ')" >>"$report"
@@ -3874,7 +3875,17 @@ echo attempt >>"$FM_FAKE_CHROME_ATTEMPTS"
 printf '<html><head></head><body>export'
 exec sleep 30
 SH
-  chmod +x "$dir/chrome-ok" "$dir/chrome-flaky" "$dir/chrome-broken" "$dir/chrome-hang"
+  cat >"$dir/chrome-unrendered" <<'SH'
+#!/bin/sh
+case "${1:-}" in --version) echo "FakeChrome 1.2.3"; exit 0 ;; esac
+echo attempt >>"$FM_FAKE_CHROME_ATTEMPTS"
+if [ "$(wc -l <"$FM_FAKE_CHROME_ATTEMPTS")" -lt 2 ]; then
+  printf '<html><head></head><body><div id="messages"></div></body></html>\n'
+  exit 0
+fi
+printf '<html><head></head><body><div id="messages"><div class="ready">export</div></div></body></html>\n'
+SH
+  chmod +x "$dir/chrome-ok" "$dir/chrome-flaky" "$dir/chrome-broken" "$dir/chrome-hang" "$dir/chrome-unrendered"
 
   : >"$dir/attempts-ok"
   FM_FAKE_CHROME_ATTEMPTS="$dir/attempts-ok" \
@@ -3893,6 +3904,16 @@ SH
   grep -Fq '</html>' "$out_file" || fail "a retried render left no DOM behind"
   [ "$(wc -l <"$dir/attempts-flaky")" -eq 3 ] \
     || fail "render_export_dom did not retry the failed Chrome start-ups exactly"
+
+  : >"$dir/attempts-unrendered"
+  : >"$out_file"
+  FM_FAKE_CHROME_ATTEMPTS="$dir/attempts-unrendered" \
+    render_export_dom "$dir/chrome-unrendered" "$source_file" "$out_file" 9.9.9 '<div class="ready"' \
+    >"$dir/report-unrendered" \
+    || fail "render_export_dom gave up on a Chrome that renders the required element on a later attempt"
+  grep -Fq '<div class="ready"' "$out_file" || fail "render_export_dom accepted a DOM without the required element"
+  [ "$(wc -l <"$dir/attempts-unrendered")" -eq 2 ] \
+    || fail "render_export_dom did not re-render until the required element appeared"
 
   : >"$dir/attempts-broken"
   : >"$out_file"
@@ -4380,7 +4401,7 @@ if (!synthetic || synthetic.display) process.exit(1);
 JS
   chrome=$(find_chrome) \
     || fail "Chrome or Chromium is required for rendered export DOM assertions; set FM_CHROME_BIN to one"
-  chrome_report=$(render_export_dom "$chrome" "$export_file" "$export_dom" "$version") \
+  chrome_report=$(render_export_dom "$chrome" "$export_file" "$export_dom" "$version" '<div class="assistant-message"') \
     || fail "could not render calm-mode HTML export DOM: $chrome_report"
   node - "$export_dom" <<'JS' || fail "rendered export DOM violated the Calm conversation boundary"
 const dom = require("node:fs").readFileSync(process.argv[2], "utf8");

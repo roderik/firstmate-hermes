@@ -66,6 +66,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# --- the remote host's tracked code root, real git repos, one project --------
+(
+  cd "$ROOT" || exit
+  tar --exclude=.git --exclude=.no-mistakes --exclude=data --exclude=state --exclude=config -cf - .
+) | (cd "$REMOTE_ROOT" && tar -xf -)
+install_remote_herdr_fixture "$REMOTE_ROOT" "$HERDR_STATE" "$HERDR_LOG" \
+  "$TMP_ROOT/herdr-send-fail" "$TMP_ROOT/herdr.sock"
+git -C "$REMOTE_ROOT" init -q -b main
+git -C "$REMOTE_ROOT" config user.email test@example.com
+git -C "$REMOTE_ROOT" config user.name Test
+git -C "$REMOTE_ROOT" add .
+git -C "$REMOTE_ROOT" commit -qm 'remote fixture root'
+REMOTE_ORIGIN="$TMP_ROOT/firstmate-origin.git"
+git init -q --bare "$REMOTE_ORIGIN"
+git -C "$REMOTE_ROOT" remote add origin "file://$REMOTE_ORIGIN"
+git -C "$REMOTE_ROOT" push -q -u origin main
+git --git-dir="$REMOTE_ORIGIN" symbolic-ref HEAD refs/heads/main
+
 PUBLISH_HOME="$TMP_ROOT/publication-home"
 PUBLISH_FAKEBIN=$(fm_fakebin "$TMP_ROOT/publication-fake")
 PUBLISH_ENTERED="$TMP_ROOT/publication-marker-entered"
@@ -88,7 +106,7 @@ printf 'schema=fm-remote-home-provision.v1\nid_b64=%s\ncharter_b64=%s\nparent_ho
   "$(printf publication | base64 | tr -d '\n')" \
   "$(printf 'Publication-order regression charter.\n' | base64 | tr -d '\n')" \
   "$(printf publish-host | base64 | tr -d '\n')" > "$PUBLISH_MANIFEST"
-PATH="$PUBLISH_FAKEBIN:$PATH" FM_HOME="$PUBLISH_HOME" FM_ROOT_OVERRIDE="$ROOT" \
+PATH="$PUBLISH_FAKEBIN:$PATH" FM_HOME="$PUBLISH_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_TEST_REAL_MV="$REAL_MV" FM_TEST_PUBLISH_ENTERED="$PUBLISH_ENTERED" \
   FM_TEST_PUBLISH_RELEASE="$PUBLISH_RELEASE" \
   "$ROOT/bin/fm-remote-home-provision.sh" < "$PUBLISH_MANIFEST" >/dev/null 2>&1 &
@@ -111,24 +129,6 @@ PUBLISH_PID=
 assert_present "$PUBLISH_HOME/.fm-secondmate-home" \
   "remote provisioning must publish its identity marker as the completion point"
 pass "remote provisioning publishes durable parent state before its completion marker"
-
-# --- the remote host's tracked code root, real git repos, one project --------
-(
-  cd "$ROOT" || exit
-  tar --exclude=.git --exclude=.no-mistakes --exclude=data --exclude=state --exclude=config -cf - .
-) | (cd "$REMOTE_ROOT" && tar -xf -)
-install_remote_herdr_fixture "$REMOTE_ROOT" "$HERDR_STATE" "$HERDR_LOG" \
-  "$TMP_ROOT/herdr-send-fail" "$TMP_ROOT/herdr.sock"
-git -C "$REMOTE_ROOT" init -q -b main
-git -C "$REMOTE_ROOT" config user.email test@example.com
-git -C "$REMOTE_ROOT" config user.name Test
-git -C "$REMOTE_ROOT" add .
-git -C "$REMOTE_ROOT" commit -qm 'remote fixture root'
-REMOTE_ORIGIN="$TMP_ROOT/firstmate-origin.git"
-git init -q --bare "$REMOTE_ORIGIN"
-git -C "$REMOTE_ROOT" remote add origin "file://$REMOTE_ORIGIN"
-git -C "$REMOTE_ROOT" push -q -u origin main
-git --git-dir="$REMOTE_ORIGIN" symbolic-ref HEAD refs/heads/main
 
 git init -q --bare "$TMP_ROOT/alpha.git"
 git -C "$PARENT/projects" init -q -b main alpha

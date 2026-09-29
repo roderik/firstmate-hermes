@@ -184,23 +184,7 @@ else
   # inside it instead of publishing, so rollback must remove only that stage.
   STAGE_HOME=$(mktemp -d "$HOME_PARENT/.fm-home-provisioning.XXXXXX") \
     || die "cannot create remote home staging directory"
-  # Local clones can transiently lose an object while Git is copying the
-  # source repository on busy hosts.  The staging directory is disposable and
-  # private to this attempt, so retry the bounded clone before reporting a
-  # provisioning failure.  A persistent failure still gets the same clear
-  # diagnostic and never publishes a partial home.
-  clone_status=1
-  for _ in 1 2 3; do
-    rm -rf -- "$STAGE_HOME"
-    mkdir -p -- "$STAGE_HOME"
-    if git clone --quiet -- "$FM_ROOT" "$STAGE_HOME"; then
-      clone_status=0
-      break
-    fi
-    rm -rf -- "$STAGE_HOME"
-    sleep 0.2
-  done
-  [ "$clone_status" -eq 0 ] || die "could not clone the remote Firstmate home"
+  git clone --quiet -- "$FM_ROOT" "$STAGE_HOME" || die "could not clone the remote Firstmate home"
   STAGE_SENTINEL="${STAGE_HOME##*/}.owner"
   : > "$STAGE_HOME/$STAGE_SENTINEL" || die "cannot mark the remote home staging directory"
   mv -- "$STAGE_HOME" "$FM_HOME" || die "cannot install the remote home"
