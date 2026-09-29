@@ -7,8 +7,7 @@
 # It reports on checks that have reported. A required context that has never
 # reported on this head is absent from what this command reads and cannot be
 # enumerated here. No blocker line after the identity line therefore means that
-# no reported required check is failing or pending; it does not mean the pull
-# request is ready to merge.
+# no reported required check is failing or pending; it does not mean the pull request is ready to merge.
 # When nothing has reported, or nothing required has, that is printed rather
 # than read as ready. Advisory checks do not block and are omitted.
 # A pull request that only awaits an approval (reviewDecision REVIEW_REQUIRED)
