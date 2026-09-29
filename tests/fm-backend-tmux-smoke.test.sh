@@ -120,6 +120,21 @@ case "$out" in
 esac
 pass "real tmux: fm_backend_tmux_send_literal + fm_backend_tmux_send_key Enter submit as two separate steps"
 
+# --- review tab placement ---------------------------------------------------
+
+REVIEW_WINDOW="fm-review-smoke"
+REVIEW_WID=$(fm_backend_tmux_create_review_task "$TARGET" "$REVIEW_WINDOW" "/tmp") \
+  || fail "fm_backend_tmux_create_review_task failed"
+review_cwd=$(tmux display-message -p -t "$REVIEW_WID" '#{pane_current_path}')
+[ "$review_cwd" = "/tmp" ] || fail "review tab did not open in the author's worktree cwd"
+tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -qx "$REVIEW_WINDOW" \
+  || fail "review tab was not created beside the author in the same session"
+pass "real tmux: review task creates a second tab in the author's session without a pool operation"
+fm_backend_tmux_kill "$SESSION:$REVIEW_WINDOW" || fail "review tab teardown did not close only the review tab"
+[ "$(tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -c '^'$WINDOW'$')" = 1 ] \
+  || fail "review tab teardown touched the author's window"
+pass "real tmux: review tab teardown preserves the author's window"
+
 # --- capture bounds -----------------------------------------------------------
 # Print enough numbered lines to overflow the pane's visible height, then
 # confirm a small capture window (-S -N) surfaces only the RECENT tail (the

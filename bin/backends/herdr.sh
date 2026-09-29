@@ -2548,6 +2548,14 @@ EOF
   printf '%s %s' "$tab_id" "$pane_id"
 }
 
+# fm_backend_herdr_create_review_task: create a review tab in the author's
+# existing workspace. The caller supplies the exact session/workspace binding
+# from the author's metadata, so no home workspace lookup or worktree provider
+# is involved. Echoes "<tab_id> <pane_id>".
+fm_backend_herdr_create_review_task() {  # <session:workspace> <label> <cwd>
+  fm_backend_herdr_create_task "$1" "$2" "$3" ""
+}
+
 # fm_backend_herdr_projection_create_task: create one disposable presentation
 # workspace and its normal fm-<id> task tab without looking up, adopting, or
 # reusing any existing workspace.

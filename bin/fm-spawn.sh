@@ -4,6 +4,7 @@
 # Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> <project-dir> --scout [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> [<firstmate-home>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>] --secondmate
+#        fm-spawn.sh <review-id> --review-of <author-task-id> [--harness <name>] [--model <name>] [--effort <level>]
 #   --mode and --yolo are this task's delivery contract, REQUIRED for every ship
 #   spawn and refused on --scout and --secondmate spawns. Firstmate resolves both
 #   per task at intake (AGENTS.md section 7); data/projects.md holds the captain's
@@ -220,6 +221,9 @@
 #   secondmate receives the primary's read-only shared captain-preference file
 #   (fm-config-inherit-lib.sh). A successful launch clears pending inherited
 #   config reread generations because the new agent reads the converged files.
+#   --review-of creates a read-only scout tab or pane in the author's existing
+#   workspace without allocating a Treehouse or Orca worktree. It is supported
+#   on tmux and Herdr; other backends refuse clearly.
 #   --scout records kind=scout in the task's meta (report deliverable, scratch worktree;
 #   see AGENTS.md task lifecycle); --secondmate records kind=secondmate and launches in a
 #   provisioned firstmate home; the default is kind=ship.
@@ -643,6 +647,8 @@ BACKEND_ARG=
 MODE=
 YOLO=
 BRANCH_PREFIX=fm/
+REVIEW_OF=
+REVIEW=0
 TRACEPARENT_ARG=
 HARNESS_SET=0
 MODEL_SET=0
@@ -696,6 +702,10 @@ for a in "$@"; do
       TRACEPARENT_ARG=$a
       TRACEPARENT_SET=1
       ;;
+    review-of)
+      REVIEW_OF=$a
+      REVIEW=1
+      ;;
     *)
       echo "error: internal parser state for --$want_value" >&2
       exit 1
@@ -714,6 +724,7 @@ for a in "$@"; do
     KIND_SET=1
     ;;
   --relaunch) RELAUNCH=1 ;;
+  --review-of) want_value=review-of ;;
   --harness) want_value=harness ;;
   --harness=*)
     HARNESS_ARG=${a#--harness=}
@@ -754,6 +765,10 @@ for a in "$@"; do
     TRACEPARENT_ARG=${a#--traceparent=}
     TRACEPARENT_SET=1
     ;;
+  --review-of=*)
+    REVIEW_OF=${a#--review-of=}
+    REVIEW=1
+    ;;
   *) POS+=("$a") ;;
   esac
 done
@@ -789,6 +804,17 @@ done
   echo "error: --traceparent requires a non-empty value" >&2
   exit 1
 }
+if [ "$REVIEW" -eq 1 ]; then
+  [ -n "$REVIEW_OF" ] || { echo "error: --review-of requires an author task id" >&2; exit 1; }
+  [ "$RELAUNCH" -eq 0 ] || { echo "error: --review-of cannot be combined with --relaunch" >&2; exit 1; }
+  [ "$KIND_SET" -eq 0 ] || { echo "error: --review-of cannot be combined with --scout or --secondmate" >&2; exit 1; }
+  [ "$MODE_SET" -eq 0 ] || { echo "error: --review-of does not accept --mode" >&2; exit 1; }
+  [ "$YOLO_SET" -eq 0 ] || { echo "error: --review-of does not accept --yolo" >&2; exit 1; }
+  [ "$BRANCH_PREFIX_SET" -eq 0 ] || { echo "error: --review-of does not accept --branch-prefix" >&2; exit 1; }
+  [ "${#POS[@]}" -eq 1 ] || { echo "error: --review-of takes only <review-id>; the author is supplied by --review-of" >&2; exit 1; }
+  fm_task_id_path_safe "$REVIEW_OF" || { echo "error: invalid author task id '$REVIEW_OF'" >&2; exit 2; }
+  KIND=scout
+fi
 # A parent-delivered carrier replaces this home's own resolution, so it is
 # refused unless it is a secondmate spawn carrying a strictly valid W3C value.
 # Nothing else may reach the pane's TRACEPARENT export.
@@ -1493,6 +1519,43 @@ fm_task_id_creation_valid "$ID" || {
   echo "error: invalid task id" >&2
   exit 2
 }
+REVIEW_META=
+REVIEW_AUTHOR_BACKEND=
+REVIEW_AUTHOR_TARGET=
+REVIEW_AUTHOR_WORKTREE=
+REVIEW_AUTHOR_PROJECT=
+REVIEW_AUTHOR_HERDR_WORKSPACE=
+if [ "$REVIEW" -eq 1 ]; then
+  REVIEW_META="$STATE/$REVIEW_OF.meta"
+  [ -f "$REVIEW_META" ] && [ ! -L "$REVIEW_META" ] || {
+    echo "error: review author task $REVIEW_OF has no safe metadata record at $REVIEW_META" >&2
+    exit 1
+  }
+  REVIEW_AUTHOR_BACKEND=$(fm_meta_get "$REVIEW_META" backend)
+  [ -n "$REVIEW_AUTHOR_BACKEND" ] || REVIEW_AUTHOR_BACKEND=tmux
+  REVIEW_AUTHOR_TARGET=$(fm_backend_target_of_meta "$REVIEW_META") || REVIEW_AUTHOR_TARGET=
+  REVIEW_AUTHOR_WORKTREE=$(fm_meta_get "$REVIEW_META" worktree)
+  REVIEW_AUTHOR_PROJECT=$(fm_meta_get "$REVIEW_META" project)
+  [ -n "$REVIEW_AUTHOR_TARGET" ] && [ -d "$REVIEW_AUTHOR_WORKTREE" ] && [ -d "$REVIEW_AUTHOR_PROJECT" ] || {
+    echo "error: review author task $REVIEW_OF has no live endpoint, worktree, or project; use a pool-worktree review after the author workspace is gone" >&2
+    exit 1
+  }
+  case "$REVIEW_AUTHOR_BACKEND" in
+    tmux|herdr) ;;
+    *) echo "error: review-in-author-workspace is unsupported on backend '$REVIEW_AUTHOR_BACKEND'; use a pool-worktree review" >&2; exit 1 ;;
+  esac
+  if [ "$BACKEND_SET" -eq 1 ] && [ "$BACKEND_ARG" != "$REVIEW_AUTHOR_BACKEND" ]; then
+    echo "error: review backend '$BACKEND_ARG' does not match author backend '$REVIEW_AUTHOR_BACKEND'" >&2
+    exit 1
+  fi
+  BACKEND_ARG=$REVIEW_AUTHOR_BACKEND
+  BACKEND_SET=1
+  PROJ="$REVIEW_AUTHOR_PROJECT"
+  if [ "$REVIEW_AUTHOR_BACKEND" = herdr ]; then
+    REVIEW_AUTHOR_HERDR_WORKSPACE=$(fm_meta_get "$REVIEW_META" herdr_workspace_id)
+    [ -n "$REVIEW_AUTHOR_HERDR_WORKSPACE" ] || { echo "error: author task $REVIEW_OF lacks herdr_workspace_id" >&2; exit 1; }
+  fi
+fi
 if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" = ship ]; then
   BRANCH="$BRANCH_PREFIX$ID"
   if ! git check-ref-format --branch "$BRANCH" >/dev/null 2>&1; then
@@ -2982,11 +3045,17 @@ if [ "$KIND" = secondmate ]; then
     BRIEF="$DATA/$ID/brief.md"
   fi
 else
-  PROJ_ABS="$(cd "$(resolve_project_dir_arg "$PROJ")" && pwd)"
-  WT=""
-  BRIEF="$DATA/$ID/brief.md"
+  if [ "$REVIEW" -eq 1 ]; then
+    PROJ_ABS=$(cd "$REVIEW_AUTHOR_PROJECT" && pwd)
+    WT="$REVIEW_AUTHOR_WORKTREE"
+    BRIEF="$DATA/$ID/brief.md"
+  else
+    PROJ_ABS="$(cd "$(resolve_project_dir_arg "$PROJ")" && pwd)"
+    WT=""
+    BRIEF="$DATA/$ID/brief.md"
+  fi
 fi
-if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
+if [ "$RELAUNCH" -eq 0 ] && [ "$REVIEW" -eq 0 ] && [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   SPAWN_TREEHOUSE_PROJECT_LOCK=$(fm_treehouse_project_lock_path "$PROJ_ABS") || {
     echo "error: could not resolve the shared Treehouse project lock for $PROJ_ABS" >&2
     exit 1
@@ -3037,6 +3106,12 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
       cat "$SOURCE_BRIEF" &&
       if [ "$KIND" = ship ] && [ "$MODE" = no-mistakes ]; then
         fm_brief_intent_overlay "$CAPTAIN_INTENT"
+      elif [ "$REVIEW" -eq 1 ]; then
+        printf '\n## Review workspace contract\n\n'
+        printf '%s\n' 'This is an independent read-only review of author task '"$REVIEW_OF"'.'
+        printf '%s\n' 'Do not edit files, switch branches, change the git index or HEAD, start a local stack, or run any command that mutates the worktree.'
+        printf '%s\n' 'Read the author commit from this worktree with git show and git diff only; the author may continue committing while you review.'
+        printf '%s\n' 'Report findings through this task status and steering inbox, then stop when the review is complete.'
       fi
   } >"$BRIEF_TMP" || {
     rm -f -- "$BRIEF_TMP"
@@ -3447,7 +3522,7 @@ herdr_projection_existing_meta_allows_flat() { # <meta>
 # a live pane. The authoritative mutation still runs under the meta lock below.
 BACKLOG_TRANSITION=0
 BACKLOG_ROW_STATE=
-if fm_backlog_transition_applies "$CONFIG" "$DATA" "$KIND"; then
+if [ "$REVIEW" -eq 0 ] && fm_backlog_transition_applies "$CONFIG" "$DATA" "$KIND"; then
   BACKLOG_TRANSITION=1
   if fm_backlog_row_probe "$DATA" "$ID"; then
     BACKLOG_ROW_STATE=$FM_BACKLOG_ROW_STATE
@@ -4217,7 +4292,27 @@ elif [ "$RELAUNCH" -eq 1 ]; then
     fi
   fi
   [ "$KIND" = secondmate ] || validate_spawn_worktree "relaunch" "$T"
-elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
+elif [ "$REVIEW" -eq 1 ]; then
+  case "$BACKEND" in
+  tmux)
+    REVIEW_WID=$(fm_backend_tmux_create_review_task "$REVIEW_AUTHOR_TARGET" "$W" "$WT") || exit 1
+    T="${REVIEW_AUTHOR_TARGET%%:*}:$W"
+    WT_TARGET="$REVIEW_WID"
+    ;;
+  herdr)
+    REVIEW_CONTAINER="${REVIEW_AUTHOR_TARGET%%:*}:$REVIEW_AUTHOR_HERDR_WORKSPACE"
+    REVIEW_TASK_IDS=$(fm_backend_herdr_create_review_task "$REVIEW_CONTAINER" "$W" "$WT") || exit 1
+    read -r HERDR_TAB_ID HERDR_PANE_ID <<EOF
+$REVIEW_TASK_IDS
+EOF
+    [ -n "$HERDR_TAB_ID" ] && [ -n "$HERDR_PANE_ID" ] || { echo "error: herdr did not return review tab/pane ids" >&2; exit 1; }
+    HERDR_SES=${REVIEW_AUTHOR_TARGET%%:*}
+    HERDR_WORKSPACE_ID=$REVIEW_AUTHOR_HERDR_WORKSPACE
+    T="$HERDR_SES:$HERDR_PANE_ID"
+    WT_TARGET="$T"
+    ;;
+  esac
+elif [ "$REVIEW" -eq 0 ] && [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   spawn_send_text_line "$WT_TARGET" 'treehouse get'
 
   # Wait for the treehouse subshell: the pane's cwd moves from the project to the worktree.
@@ -4299,7 +4394,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
     SPAWN_SLOT_CLAIMED=1
   fi
 fi
-if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" != secondmate ]; then
+if [ "$RELAUNCH" -eq 0 ] && [ "$REVIEW" -eq 0 ] && [ "$KIND" != secondmate ]; then
   freshen_spawn_worktree_base "$WT" || exit 1
 fi
 
@@ -4872,6 +4967,7 @@ preserve_relaunch_meta() {
   echo "project=$PROJ_ABS"
   echo "harness=$HARNESS"
   echo "kind=$KIND"
+  [ "$REVIEW" -eq 1 ] && echo "review_of=$REVIEW_OF" && echo "review_only=1"
   [ -z "$MODE" ] || echo "mode=$MODE"
   [ -z "$YOLO" ] || echo "yolo=$YOLO"
   [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
@@ -5167,6 +5263,9 @@ if [ "$LAVISH_AXI_HOST_CONFIG_PRESENT" = 1 ]; then
   LAUNCH="export LAVISH_AXI_HOST=$(shell_quote "$LAVISH_AXI_HOST"); $LAUNCH"
 fi
 LAUNCH="export COMPACT_ADVISER_DISABLE=1; $LAUNCH"
+if [ "$REVIEW" -eq 1 ]; then
+  LAUNCH="export FM_REVIEW_READ_ONLY=1; $LAUNCH"
+fi
 # When the live-harness gate has exported DISABLE_AUTOUPDATER into this spawn's
 # own environment, carry it into the launch command text so Claude Code's
 # auto-updater cannot rewrite the shared binary during a live run. Embedding the
@@ -5226,6 +5325,9 @@ fi
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   spawn_send_text_line "$T" "export FM_TASK_ID=$ID"
 fi
+if [ "$REVIEW" -eq 1 ]; then
+  spawn_send_text_line "$T" "export FM_REVIEW_READ_ONLY=1"
+fi
 # Send through the exact channel that already ships GOTMPDIR, so every backend
 # and harness - ship, scout, and secondmate - gets it before launch. Skipped
 # entirely when trace context is off.
@@ -5252,7 +5354,7 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
     TMPDIR TMP TEMP GOTMPDIR TMUX TMUX_PANE HERDR_ENV HERDR_SESSION HERDR_SOCKET_PATH \
     HERDR_PANE_ID CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_TAB_ID CMUX_PANEL_ID \
     CMUX_SOCKET_PATH ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID FM_ZELLIJ_SESSION \
-    FM_TASK_ID COMPACT_ADVISER_DISABLE LAVISH_AXI_HOST \
+    FM_TASK_ID FM_REVIEW_READ_ONLY COMPACT_ADVISER_DISABLE LAVISH_AXI_HOST \
     $LAUNCH_ENV_NAMES; do
     # Only validated names enter shell syntax. Values expand once, quoted, in
     # the pane shell and never become source text or spawn-process snapshots.
@@ -5270,6 +5372,7 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
   # $LAUNCH is what gives the wrapping `/bin/sh` itself the switch, not only the
   # agent command it runs.
   LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX COMPACT_ADVISER_DISABLE=1"
+  [ "$REVIEW" -eq 1 ] && LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX FM_REVIEW_READ_ONLY=1"
   if [ -n "$SPAWN_TRACEPARENT" ]; then
     # shellcheck disable=SC2016
     LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX "'${TRACEPARENT+"TRACEPARENT=$TRACEPARENT"}'
