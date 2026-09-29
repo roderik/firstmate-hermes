@@ -78,7 +78,7 @@ case "$COMMAND" in
     # progress prose cannot dispatch a review of an uncommitted tree.
     STATUS="$STATE/$ID.status"
     if [ -f "$STATUS" ] && [ ! -L "$STATUS" ]; then
-      HEAD=$(sed -nE 's/^working( \[[^]]+\])?: build done commit=([0-9a-fA-F]{40})( |$).*/\2/p; s/^needs-decision( \[[^]]+\])?:.*ready for independent review at ([0-9a-fA-F]{40})( |$).*/\2/p' "$STATUS" | tail -1)
+      HEAD=$(sed -nE 's/^working( \[[^]]+\])?: build done commit=([0-9a-fA-F]{40})( |$).*/\2/p' "$STATUS" | tail -1)
     fi
     PR=$(meta_value "$META" pr)
     [ -n "$PR" ] || PR=-

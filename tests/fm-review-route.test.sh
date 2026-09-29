@@ -29,6 +29,9 @@ HEAD_C=2123456789abcdef0123456789abcdef01234567
 PR=https://github.com/o/r/pull/7
 
 route configure build security reviewer codex >/dev/null || fail 'could not configure review'
+printf 'needs-decision [at=0]: ready for independent review at %s\n' "$HEAD_C" > "$STATE/build.status"
+route scan build >/dev/null || fail 'decision prose scan failed'
+[ ! -s "$SEND_LOG" ] || fail 'decision prose spent a review round'
 printf 'working [at=1]: build done commit=%s\n' "$HEAD_A" > "$STATE/build.status"
 route scan build >/dev/null || fail 'build commit did not route review'
 [ "$(wc -l < "$SEND_LOG")" -eq 1 ] || fail 'first review was not delivered exactly once'
