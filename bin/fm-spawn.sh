@@ -649,6 +649,7 @@ YOLO=
 BRANCH_PREFIX=fm/
 REVIEW_OF=
 REVIEW=0
+REVIEW_FALLBACK=0
 TRACEPARENT_ARG=
 HARNESS_SET=0
 MODEL_SET=0
@@ -1536,10 +1537,18 @@ if [ "$REVIEW" -eq 1 ]; then
   REVIEW_AUTHOR_TARGET=$(fm_backend_target_of_meta "$REVIEW_META") || REVIEW_AUTHOR_TARGET=
   REVIEW_AUTHOR_WORKTREE=$(fm_meta_get "$REVIEW_META" worktree)
   REVIEW_AUTHOR_PROJECT=$(fm_meta_get "$REVIEW_META" project)
-  [ -n "$REVIEW_AUTHOR_TARGET" ] && [ -d "$REVIEW_AUTHOR_WORKTREE" ] && [ -d "$REVIEW_AUTHOR_PROJECT" ] || {
-    echo "error: review author task $REVIEW_OF has no live endpoint, worktree, or project; use a pool-worktree review after the author workspace is gone" >&2
+  [ -d "$REVIEW_AUTHOR_PROJECT" ] || {
+    echo "error: review author task $REVIEW_OF has no project record; cannot fall back to a pool-worktree review" >&2
     exit 1
   }
+  if [ -z "$REVIEW_AUTHOR_TARGET" ] || [ ! -d "$REVIEW_AUTHOR_WORKTREE" ]; then
+    REVIEW=0
+    REVIEW_FALLBACK=1
+    KIND=scout
+    PROJ="$REVIEW_AUTHOR_PROJECT"
+    echo "notice: author workspace for $REVIEW_OF is gone; falling back to a pooled review worktree" >&2
+  fi
+  if [ "$REVIEW" -eq 1 ]; then
   case "$REVIEW_AUTHOR_BACKEND" in
     tmux|herdr) ;;
     *) echo "error: review-in-author-workspace is unsupported on backend '$REVIEW_AUTHOR_BACKEND'; use a pool-worktree review" >&2; exit 1 ;;
@@ -1554,6 +1563,7 @@ if [ "$REVIEW" -eq 1 ]; then
   if [ "$REVIEW_AUTHOR_BACKEND" = herdr ]; then
     REVIEW_AUTHOR_HERDR_WORKSPACE=$(fm_meta_get "$REVIEW_META" herdr_workspace_id)
     [ -n "$REVIEW_AUTHOR_HERDR_WORKSPACE" ] || { echo "error: author task $REVIEW_OF lacks herdr_workspace_id" >&2; exit 1; }
+  fi
   fi
 fi
 if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" = ship ]; then
@@ -1906,7 +1916,11 @@ elif [ "$KIND" = secondmate ]; then
     ;;
   esac
 else
-  PROJ=${POS[1]}
+  if [ "$REVIEW_FALLBACK" -eq 1 ]; then
+    PROJ="$REVIEW_AUTHOR_PROJECT"
+  else
+    PROJ=${POS[1]}
+  fi
   ARG3=${POS[2]:-}
 fi
 [ -z "$HARNESS_ARG" ] || ARG3=$HARNESS_ARG
