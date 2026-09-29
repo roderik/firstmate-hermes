@@ -398,12 +398,14 @@ MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
 # The project's declared ready check runs before the control lock so a long
 # check cannot hold the task's lock. It is skipped only when the forge head is
 # the head bin/fm-pr-check.sh already checked and recorded. The merge is then
-# bound to that head: require_ready_head refuses one that moved meanwhile.
-READY_HEAD=
+# bound to the head that was checked or skipped: require_ready_head refuses one
+# that moved meanwhile.
+READY_BOUND=
 READY_KIND=$(grep '^kind=' "$META" | tail -1 | cut -d= -f2- || true)
 if [ "${READY_KIND:-ship}" = ship ]; then
   READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
   READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+  READY_HEAD=
   READY_REMOTE=
   if [ "$PROVIDER" = github ] && [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && command -v gh >/dev/null 2>&1; then
     READY_REMOTE=$(cd "$READY_WT" && gh pr view "$URL" --json headRefOid -q .headRefOid 2>/dev/null || true)
@@ -412,18 +414,27 @@ if [ "${READY_KIND:-ship}" = ship ]; then
       | jq -r 'if type == "object" then (.sha // empty) else empty end' 2>/dev/null || true)
   fi
   ! fm_pr_head_valid "$READY_REMOTE" || READY_HEAD=$READY_REMOTE
-  if [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ] \
-    && ! { [ -n "$READY_HEAD" ] && [ "$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)" = "$URL" ] \
-      && [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" = "$READY_HEAD" ]; }; then
-    "$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" ${READY_HEAD:+"$READY_HEAD"} >/dev/null \
-      || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+  if [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ]; then
+    if [ -n "$READY_HEAD" ] && [ "$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)" = "$URL" ] \
+      && [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" = "$READY_HEAD" ]; then
+      READY_BOUND=$READY_HEAD
+    else
+      READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" ${READY_HEAD:+"$READY_HEAD"}) \
+        || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+      case "$READY_OUT" in
+        *'ready-check: passed'*)
+          READY_BOUND=${READY_HEAD:-$(git -C "$READY_WT" rev-parse --verify --quiet 'HEAD^{commit}' || true)}
+          [ -n "$READY_BOUND" ] || { echo "error: task $ID ready check passed on an unreadable worktree head; refusing to merge" >&2; exit 1; }
+          ;;
+      esac
+    fi
   fi
 fi
 
 require_ready_head() {
-  [ -z "$READY_HEAD" ] || [ "$FM_PR_MERGE_HEAD" = "$READY_HEAD" ] || {
+  [ -z "$READY_BOUND" ] || [ "$FM_PR_MERGE_HEAD" = "$READY_BOUND" ] || {
     printf 'error: %s head moved to %s after its ready check at %s; refusing to merge an unchecked head - retry the merge\n' \
-      "$URL" "$FM_PR_MERGE_HEAD" "$READY_HEAD" >&2
+      "$URL" "$FM_PR_MERGE_HEAD" "$READY_BOUND" >&2
     return 1
   }
 }

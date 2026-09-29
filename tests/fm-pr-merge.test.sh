@@ -1799,26 +1799,39 @@ SH
   pass "fm-pr-merge pins the GitLab ready check to the merge request head, runs it outside the control lock, and refuses on failure"
 }
 
-# The head read before the control lock is the head the ready check covered, so
-# a push that lands before the locked verification must refuse the merge.
+# The merge is bound to the head a declared ready check covered: the forge head
+# read before the control lock, or the worktree head when that read failed. A
+# project that declares no check is not bound.
 test_github_merge_refuses_head_moved_after_ready_check() {
-  local case_dir rc
+  local case_dir rc wt_head pre_lock_head
   case_dir=$(make_case github-ready-head-moved)
   add_gh_mocks "$case_dir" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  printf '%s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > "$case_dir/github-head"
   : > "$case_dir/gh-axi.log"
+  wt_head=$(git -C "$case_dir/wt" rev-parse HEAD)
 
   set +e
-  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 \
-    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
   rc=$?
   set -e
+  expect_code 0 "$rc" "github-ready-head-moved: a project without a ready check was bound to a checked head"
 
-  [ "$rc" -ne 0 ] || fail "github-ready-head-moved: a head that moved after the ready check was merged"
-  assert_grep 'head moved to bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb after its ready check at aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
-    "$case_dir/stderr" "github-ready-head-moved: the refusal did not name both heads"
-  ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved: gh was asked to merge an unchecked head"
-  pass "fm-pr-merge refuses a GitHub head that moved after its ready check"
+  mkdir -p "$case_dir/project/.firstmate"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$case_dir/project/.firstmate/ready-check"
+  chmod +x "$case_dir/project/.firstmate/ready-check"
+  for pre_lock_head in "$wt_head" unreadable; do
+    add_gh_mocks "$case_dir" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    if [ "$pre_lock_head" = unreadable ]; then rm -f "$case_dir/github-head"; else printf '%s\n' "$pre_lock_head" > "$case_dir/github-head"; fi
+    : > "$case_dir/gh.log"
+    set +e
+    run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    [ "$rc" -ne 0 ] || fail "github-ready-head-moved ($pre_lock_head): a head that moved after the ready check was merged"
+    assert_grep "head moved to bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb after its ready check at $wt_head" \
+      "$case_dir/stderr" "github-ready-head-moved ($pre_lock_head): the refusal did not name both heads"
+    ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved ($pre_lock_head): gh was asked to merge an unchecked head"
+  done
+  pass "fm-pr-merge binds a GitHub merge to the head its declared ready check covered, even when the forge head was unreadable"
 }
 
 test_gitlab_host_comes_from_the_url() {
