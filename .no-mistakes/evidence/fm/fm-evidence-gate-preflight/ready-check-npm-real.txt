@@ -1,0 +1,46 @@
+(real npm 11.19.0, node v26.8.1)
+### R1: worker branch committed code fails the declared npm pr:ready-check
+ready-check: running npm run pr:ready-check
+
+> pr:ready-check
+> node -e "const f=require('fs');if(!f.readFileSync('app.js','utf8').includes('READY'))process.exit(4);console.log('lint+test ok')"
+
+ready-check: failed (exit 4)
+exit=4
+### R2: worker leaves an uncommitted fix in the worktree
+ready-check: worktree has uncommitted or untracked changes; commit them before handoff
+exit=1
+### R3: fix committed, clean worktree
+ready-check: running npm run pr:ready-check
+
+> pr:ready-check
+> node -e "const f=require('fs');if(!f.readFileSync('app.js','utf8').includes('READY'))process.exit(4);console.log('lint+test ok')"
+
+lint+test ok
+ready-check: passed
+exit=0
+### R4: pinned to a different handed-off head (main)
+ready-check: worktree HEAD is not the handed-off head c133600486df1ac3380a08baa2954ad62d7264c6; fetch and check it out before handoff
+exit=1
+### R5: pinned to the worktree head
+ready-check: running npm run pr:ready-check
+
+> pr:ready-check
+> node -e "const f=require('fs');if(!f.readFileSync('app.js','utf8').includes('READY'))process.exit(4);console.log('lint+test ok')"
+
+lint+test ok
+ready-check: passed
+exit=0
+### R6: worker rewrites pr:ready-check to 'exit 0' on its branch and breaks code
+ready-check: pr:ready-check on the worker branch differs from the project declaration
+exit=1
+### R7: project without a declaration (gate not applicable)
+ready-check: not declared for /tmp/fm-lab.SGAXWk/projects/demo (handoff gate not applicable)
+exit=0
+### R8: fm_dod_ready_check one-line reason for a failing check
+project ready check failed: ready-check: failed (exit 4)
+exit=1
+### R9: hung check bounded by FM_READY_CHECK_TIMEOUT=2
+ready-check: running /tmp/fm-lab.SGAXWk/projects/demo/.firstmate/ready-check
+ready-check: timed out after 2s
+exit=124 elapsed=2s

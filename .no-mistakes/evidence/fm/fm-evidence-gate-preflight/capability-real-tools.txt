@@ -1,0 +1,21 @@
+### real pool probe, lab project (never set up for treehouse/no-mistakes)
+capability: pool ready
+exit=0
+### real ci probe, lab project (never set up for treehouse/no-mistakes)
+capability: ci unavailable - no-mistakes is not ready for this project
+exit=1
+### real pool probe, this firstmate gate worktree (called from cwd /)
+capability: pool ready
+exit=0
+### real ci probe, this firstmate gate worktree (called from cwd /)
+capability: ci unavailable - no-mistakes is not ready for this project
+exit=1
+### real browser probe (chrome-devtools-axi)
+capability: browser unavailable - chrome-devtools-axi could not drive a browser
+exit=1
+### bad surface
+error: --surface must be browser, attachments, pool, seed, or ci
+exit=2
+### real ci probe against an initialized no-mistakes project checkout (/home/roderik/.treehouse/firstmate-8bf1b0/2/firstmate), called from cwd /
+capability: ci ready
+exit=0

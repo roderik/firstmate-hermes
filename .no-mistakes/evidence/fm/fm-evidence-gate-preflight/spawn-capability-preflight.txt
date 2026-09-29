@@ -1,0 +1,26 @@
+### S1: brief "Proof surfaces: seed", project seed-check fails
+seed db unreachable
+capability: seed unavailable - .firstmate/seed-check failed
+error: required host capability 'seed' is unavailable; refusing dispatch before endpoint creation
+exit=1
+
+### S2: "Proof surfaces: seed, attachments", seed-check passes, no attachments-check declared
+seeded-ok
+capability: seed ready
+capability: attachments unavailable - project declares no .firstmate/attachments-check
+error: required host capability 'attachments' is unavailable; refusing dispatch before endpoint creation
+exit=1
+
+### S3: unknown surface "webcam"
+seeded-ok
+capability: seed ready
+error: unknown proof surface 'webcam' in /tmp/fm-lab.SGAXWk/data/cap-seed/brief.md
+exit=1
+
+### S4: seed-check hangs, FM_CAPABILITY_CHECK_TIMEOUT=2
+capability: seed unavailable - .firstmate/seed-check failed
+error: required host capability 'seed' is unavailable; refusing dispatch before endpoint creation
+exit=1 elapsed=4s
+
+### lab state after all refusals (no task meta / endpoint created):
+cap-seed

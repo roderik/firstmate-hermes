@@ -1,0 +1,23 @@
+### L1: ship branch tip commits code that fails npm pr:ready-check
+branch tip=9b30ac8
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ready-check: running npm run pr:ready-check
+ready-check: failed (exit 4)
+error: task web-2 project ready check did not pass; refusing to merge
+exit=1  main=c133600
+### L2: correct fix left uncommitted in worktree (committed tip still failing)
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: task web-2 worktree is not a clean checkout of its ship branch tip; refusing to run the ready check or merge
+exit=1  main=c133600
+### L3: fix committed; clean worktree at branch tip
+branch tip=d2e00b8
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+ready-check: running npm run pr:ready-check
+merged fm/web-2 into local main (c133600 -> d2e00b8) in /tmp/fm-lab.SGAXWk/projects/web2
+exit=0  main=d2e00b8
