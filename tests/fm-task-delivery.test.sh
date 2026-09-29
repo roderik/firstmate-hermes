@@ -507,14 +507,16 @@ test_local_merge_ready_checks_the_committed_branch_tip() {
   before=$(git -C "$proj" rev-parse HEAD)
   git -C "$proj" worktree add -q -b "fm/$id" "$wt" || fail "could not create ship worktree fixture"
   printf 'change\n' > "$wt/change"
-  git -C "$wt" add change && git -C "$wt" commit -qm change || fail "could not commit ship change"
+  git -C "$wt" add change || fail "could not stage ship change"
+  git -C "$wt" commit -qm change || fail "could not commit ship change"
   : > "$wt/ready.ok"
   printf 'project=%s\nmode=local-only\nworktree=%s\n' "$proj" "$wt" > "$home/state/$id.meta"
   if out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$MERGE_LOCAL" "$id" 2>&1); then
     fail "local merge landed a branch whose ready check passed only on uncommitted files: $out"
   fi
   [ "$(git -C "$proj" rev-parse "$main")" = "$before" ] || fail "refused local merge moved the default branch"
-  git -C "$wt" add ready.ok && git -C "$wt" commit -qm ready || fail "could not commit ready marker"
+  git -C "$wt" add ready.ok || fail "could not stage ready marker"
+  git -C "$wt" commit -qm ready || fail "could not commit ready marker"
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$MERGE_LOCAL" "$id" 2>&1) \
     || fail "local merge refused a clean branch tip whose ready check passes: $out"
   [ "$(git -C "$proj" rev-parse "$main")" = "$(git -C "$wt" rev-parse HEAD)" ] \
