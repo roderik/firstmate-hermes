@@ -57,6 +57,14 @@ if ! fm_backlog_meta_spawn_gen_optional "$META" "$STATE"; then
   exit 1
 fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
+# The project's declared ready check is the local-only handoff gate. It runs
+# before the control lock so a long check cannot hold the task's lock.
+READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
+READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+if [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ]; then
+  "$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" >/dev/null \
+    || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+fi
 
 MERGE_CONTROL_LOCK=
 merge_control_cleanup() {

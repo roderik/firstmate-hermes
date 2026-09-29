@@ -3147,10 +3147,7 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   # example `Proof surfaces: browser, attachments`. Check them before any
   # endpoint or worktree allocation so a missing capability is reported at
   # dispatch.
-  PROOF_SURFACES=$(sed -n \
-    -e 's/^[[:space:]]*Proof surfaces:[[:space:]]*//p' \
-    -e 's/^[[:space:]]*Required host capabilities:[[:space:]]*//p' \
-    "$BRIEF" | head -n 1)
+  PROOF_SURFACES=$(sed -n 's/^[[:space:]]*Proof surfaces:[[:space:]]*//p' "$BRIEF" | head -n 1)
   if [ -n "$PROOF_SURFACES" ]; then
     OLD_IFS=$IFS
     IFS=','
@@ -3161,9 +3158,7 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
       proof_surface=$(printf '%s' "$proof_surface" | tr -d '[:space:]')
       [ -n "$proof_surface" ] || continue
       case "$proof_surface" in browser|attachments|pool|seed|ci) ;; *) echo "error: unknown proof surface '$proof_surface' in $BRIEF" >&2; exit 1 ;; esac
-      capability_args=(--surface "$proof_surface")
-      [ "$proof_surface" = seed ] && capability_args+=(--project "$PROJ_ABS")
-      "$SCRIPT_DIR/fm-capability-check.sh" "${capability_args[@]}" || {
+      "$SCRIPT_DIR/fm-capability-check.sh" --surface "$proof_surface" --project "$PROJ_ABS" || {
         echo "error: required host capability '$proof_surface' is unavailable; refusing dispatch before endpoint creation" >&2
         exit 1
       }

@@ -493,14 +493,13 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
   esac
 }
 
-# Run the optional project-owned handoff check against a worker worktree.
-fm_dod_ready_check() {  # <worktree>
-  local wt=$1 ready_script ready_output
-  [ -n "$wt" ] && [ -d "$wt" ] || return 0
-  ready_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-ready-check.sh"
-  [ -x "$ready_script" ] || return 0
-  if ! ready_output=$("$ready_script" "$wt" 2>&1); then
-    printf '%s\n' "project ready check failed: $ready_output"
+# Run the optional project-owned handoff check against a worker worktree. It
+# runs project commands, so only handoff boundaries call it, never state reads.
+fm_dod_ready_check() {  # <project> <worktree>
+  local project=$1 wt=$2 ready_output
+  [ -n "$wt" ] && [ -d "$wt" ] && [ -n "$project" ] && [ -d "$project" ] || return 0
+  if ! ready_output=$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-ready-check.sh" "$project" "$wt" 2>&1); then
+    printf '%s\n' "project ready check failed: $(printf '%s\n' "$ready_output" | tail -n 1)"
     return 1
   fi
 }
@@ -642,11 +641,6 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
-  # The ready check is project-owned and opt-in: projects declare it through
-  # .firstmate/ready-check or package.json pr:ready-check. An absent declaration
-  # preserves legacy projects; a declared check must pass before any ready line
-  # can be accepted or a PR poll can be armed.
-  fm_dod_ready_check "$wt" || return 1
   if url=$(fm_dod_pr_url_from_done_note "$(status_line_note "$line")") \
     && fm_dod_recorded_pr_on_forge "$state" "$id" "$meta" "$mode" "$url"; then
     return 0

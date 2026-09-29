@@ -142,9 +142,12 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
-if [ -n "$PR_HEAD" ] && fm_dod_forge_head_is_named_head "$MODE"; then
-  fm_dod_ready_check "$WT" || { echo "error: project ready check did not pass for $URL" >&2; exit 1; }
-elif ! GATE_REASON=$(fm_dod_accept_ship_done "${KIND:-ship}" "$MODE" "$WT" "$PROJECT" "$DONE_LINE" "$STATE" "$ID" "$META"); then
+if [ "${KIND:-ship}" = ship ] && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT"); then
+  echo "error: $GATE_REASON" >&2
+  exit 1
+fi
+if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
+  && ! GATE_REASON=$(fm_dod_accept_ship_done "${KIND:-ship}" "$MODE" "$WT" "$PROJECT" "$DONE_LINE" "$STATE" "$ID" "$META"); then
   echo "error: $GATE_REASON" >&2
   exit 1
 fi
