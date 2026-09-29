@@ -1,0 +1,20 @@
+review configured: task=build class=security owner=reviewer family=codex
+review configured: task=broken class=security owner=reviewer family=codex
+=== S13: watcher routes a worker's 'build done commit=' status line
+routed within watcher cycle
+--- build.review-rounds:
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	-	security	codex	94d4fa11226f8307	-
+--- reviewer inbox:
+001.msg
+handled
+[fm-from-firstmate]⁣delivery=94d4fa11226f8307 Independent security review requested for task build. Review exact head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, PR -. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 94d4fa11226f8307.
+
+=== S14: broken review owner raises one attention wake (not repeated on next status change)
+watch stdout:
+signal: /tmp/fm-lab.me1bMY/state/broken.status /tmp/fm-lab.me1bMY/state/build.status
+attention wakes after 1st change: 1
+broken.review-route-attention
+.wake-queue
+.wake-queue.seq
+attention wakes after 2nd change: 1
+1790710999	1	check	review-route-broken	review routing needs attention: task=broken

@@ -1,0 +1,97 @@
+=== S1: configure + scan routes exact committed head A
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure build security reviewer codex
+review configured: task=build class=security owner=reviewer family=codex
+[rc=0] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+[rc=0] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+--- inbox record body:
+grep: /tmp/fm-lab.jwxCpI/state/reviewer.inbox/*.msg: No such file or directory
+--- doorbell typed into reviewer pane:
+
+=== S2: PR registered at B (request exact pr_head), then fix commit C routed by watcher scan
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb security codex
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+=== S3: cap: third ordinary round refused (C), escalation wake written once
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+--- escalation marker: 
+--- wake queue:
+
+=== S4 adversarial: exception without correctness/security wording refused; with it routed once
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex style-3 blocking style nit
+fm-review-route: exception must name correctness or security
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex sec-9 blocking security token leak
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex sec-9 blocking security token leak
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+=== S5 adversarial: wrong class, wrong PR, short head, self-review owner, non-secondmate owner
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 dddddddddddddddddddddddddddddddddddddddd perf codex
+fm-review-route: request disagrees with configured review class or family
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/8 dddddddddddddddddddddddddddddddddddddddd security codex
+fm-review-route: PR is not owned by this task
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 abc123 security codex
+fm-review-route: review needs an exact 40-hex commit
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure other security build codex
+fm-review-route: review owner is not a recorded secondmate
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure other security other codex
+fm-review-route: review owner is not a recorded secondmate
+[rc=1] reviewer inbox records: 0
+
+=== S6: stale-head: registered PR head A, newer build head B scanned; older unrouted PR head never routed
+review configured: task=older class=security owner=reviewer family=codex
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan older
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan older
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/roderik/.no-mistakes/repos/49bdd8e38f81.git)
+fm-review-route: review delivery was not confirmed; retry the same request
+[rc=1] reviewer inbox records: 0
+--- new records: 0; routed heads:
+cut: /tmp/fm-lab.jwxCpI/state/older.review-rounds: No such file or directory
+
+=== S7: teardown cleanup list — task id reuse after state removal can re-configure

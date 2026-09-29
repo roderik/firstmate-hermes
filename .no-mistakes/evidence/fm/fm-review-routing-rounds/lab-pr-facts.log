@@ -1,0 +1,58 @@
+review configured: task=shipa class=security owner=reviewer family=codex
+
+=== S8: fm-pr-check records ownership/base/merge-owner facts and routes exact PR head (yolo=on, review configured)
+$ fm-pr-check.sh shipa https://github.com/kunchenguid/firstmate/pull/6158
+fm-send: doorbell not typed because the agent in lab:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.j1aaYc/state/reviewer.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=shipa round=1 head=ced3227c3636eac29a322ca508f3b707a941cf76 pr=https://github.com/kunchenguid/firstmate/pull/6158 owner=reviewer class=security family=codex receipt=b27d3909a638c92f
+armed: state/shipa.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6158 task_owner=shipa head_repo=amitauti/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=firstmate
+[rc=0]
+--- recorded meta:
+project=firstmate
+review_class=security
+review_owner=reviewer
+review_family=codex
+task_owner=shipa
+head_repo=amitauti/firstmate
+base_repo=kunchenguid/firstmate
+base_ref=main
+base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272
+merge_target=kunchenguid/firstmate:main
+stacked=no
+merge_owner=firstmate
+pr=https://github.com/kunchenguid/firstmate/pull/6158
+pr_head=ced3227c3636eac29a322ca508f3b707a941cf76
+--- review rounds receipt:
+ced3227c3636eac29a322ca508f3b707a941cf76	https://github.com/kunchenguid/firstmate/pull/6158	security	codex	b27d3909a638c92f	-
+--- forge head for comparison: ced3227c3636eac29a322ca508f3b707a941cf76
+
+=== S9: yolo=off, no review configured -> merge_owner=operator, no review routed
+$ fm-pr-check.sh shipb https://github.com/kunchenguid/firstmate/pull/6158
+armed: state/shipb.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6158 task_owner=shipb head_repo=amitauti/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=operator
+[rc=0]
+merge_owner=operator
+0
+
+=== S10: fm-pr-state prints identity + merge-owner line, refuses non-owner task
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6158 shipa
+PR: https://github.com/kunchenguid/firstmate/pull/6158 task_owner=shipa head_repo=amitauti/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=firstmate
+CHECKS: no required check has reported; readiness unconfirmed
+[rc=0]
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6158 reviewer
+fm-pr-state: task owner does not own PR
+[rc=2]
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6157 shipa
+fm-pr-state: task owner does not own PR
+[rc=2]
+
+=== S11: fleet snapshot exposes pr ownership facts
+{"id":"reviewer","pr":{"url":null,"source":"absent","head":null,"task_owner":null,"head_repo":null,"base_repo":null,"base_ref":null,"base_sha":null,"merge_target":null,"stacked":null,"merge_owner":null}}
+{"id":"shipa","pr":{"url":"https://github.com/kunchenguid/firstmate/pull/6158","source":"meta","head":"ced3227c3636eac29a322ca508f3b707a941cf76","task_owner":"shipa","head_repo":"amitauti/firstmate","base_repo":"kunchenguid/firstmate","base_ref":"main","base_sha":"1f2c9548f4680efeda76fabe9f057b4021b97272","merge_target":"kunchenguid/firstmate:main","stacked":"no","merge_owner":"firstmate"}}
+{"id":"shipb","pr":{"url":"https://github.com/kunchenguid/firstmate/pull/6158","source":"meta","head":"ced3227c3636eac29a322ca508f3b707a941cf76","task_owner":"shipb","head_repo":"amitauti/firstmate","base_repo":"kunchenguid/firstmate","base_ref":"main","base_sha":"1f2c9548f4680efeda76fabe9f057b4021b97272","merge_target":"kunchenguid/firstmate:main","stacked":"no","merge_owner":"operator"}}
+
+=== S12: fm-pr-check with gh identity API unavailable still arms (facts unknown)
+armed: state/shipc.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6158 task_owner=shipc head_repo=unknown base_repo=unknown base_ref=unknown base_sha=unknown merge_target=unknown stacked=unknown merge_owner=firstmate
+[rc=0]
+head_repo=unknown
+base_ref=unknown
+stacked=unknown
+merge_owner=firstmate

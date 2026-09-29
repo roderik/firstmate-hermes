@@ -1,0 +1,110 @@
+=== S1: configure + scan routes exact committed head A
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure build security reviewer codex
+review configured: task=build class=security owner=reviewer family=codex
+[rc=0] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+[rc=0] reviewer inbox records: 0
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in lab:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.1TfiVV/state/reviewer.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=1 head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pr=- owner=reviewer class=security family=codex receipt=94d4fa11226f8307
+[rc=0] reviewer inbox records: 1
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+review already routed: task=build head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pr=-
+[rc=0] reviewer inbox records: 1
+--- inbox record body:
+[fm-from-firstmate]⁣delivery=94d4fa11226f8307 Independent security review requested for task build. Review exact head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, PR -. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 94d4fa11226f8307.
+--- doorbell typed into reviewer pane:
+
+=== S2: PR registered at B (request exact pr_head), then fix commit C routed by watcher scan
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb security codex
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in lab:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.1TfiVV/state/reviewer.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=2 head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb pr=https://github.com/o/r/pull/7 owner=reviewer class=security family=codex receipt=abc3bc5d83e7ec17
+[rc=0] reviewer inbox records: 2
+
+=== S3: cap: third ordinary round refused (C), escalation wake written once
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+[rc=3] reviewer inbox records: 2
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan build
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+[rc=3] reviewer inbox records: 2
+--- escalation marker: cccccccccccccccccccccccccccccccccccccccc
+--- wake queue:
+1790710903	1	check	review-cap-build	review cap reached: task=build pr=https://github.com/o/r/pull/7 head=cccccccccccccccccccccccccccccccccccccccc class=security; file non-blocking polish as follow-up
+
+=== S4 adversarial: exception without correctness/security wording refused; with it routed once
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex style-3 blocking style nit
+fm-review-route: exception must name correctness or security
+[rc=1] reviewer inbox records: 2
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex sec-9 blocking security token leak
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+fm-send: doorbell not typed because the agent in lab:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.1TfiVV/state/reviewer.inbox/003.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=3 head=cccccccccccccccccccccccccccccccccccccccc pr=https://github.com/o/r/pull/7 owner=reviewer class=security family=codex receipt=dd791f58fc4078aa
+[rc=0] reviewer inbox records: 3
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 cccccccccccccccccccccccccccccccccccccccc security codex sec-9 blocking security token leak
+review already routed: task=build head=cccccccccccccccccccccccccccccccccccccccc pr=https://github.com/o/r/pull/7
+[rc=0] reviewer inbox records: 3
+
+=== S5 adversarial: wrong class, wrong PR, short head, self-review owner, non-secondmate owner
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 dddddddddddddddddddddddddddddddddddddddd perf codex
+fm-review-route: request disagrees with configured review class or family
+[rc=1] reviewer inbox records: 3
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/8 dddddddddddddddddddddddddddddddddddddddd security codex
+fm-review-route: PR is not owned by this task
+[rc=1] reviewer inbox records: 3
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh request build https://github.com/o/r/pull/7 abc123 security codex
+fm-review-route: review needs an exact 40-hex commit
+[rc=1] reviewer inbox records: 3
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure other security build codex
+fm-review-route: review owner is not a recorded secondmate
+[rc=1] reviewer inbox records: 3
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh configure other security other codex
+fm-review-route: review owner is not a recorded secondmate
+[rc=1] reviewer inbox records: 3
+
+=== S6: stale-head: registered PR head A, newer build head B scanned; older unrouted PR head never routed
+review configured: task=older class=security owner=reviewer family=codex
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan older
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+fm-send: doorbell not typed because the agent in lab:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.1TfiVV/state/reviewer.inbox/004.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=older round=1 head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb pr=https://github.com/o/r/pull/7 owner=reviewer class=security family=codex receipt=1cd9f91b7ad58c35
+[rc=0] reviewer inbox records: 4
+
+$ /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3Q9GBEQJPGD2H890860YPQP/bin/fm-review-route.sh scan older
+review already routed: task=older head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb pr=https://github.com/o/r/pull/7
+[rc=0] reviewer inbox records: 4
+--- new records: 1; routed heads:
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+=== S7: teardown state files present before teardown:
+build.review-cap-escalated
+build.review-rounds
+older.review-rounds
+reviewer.inbox
+reviewer.meta

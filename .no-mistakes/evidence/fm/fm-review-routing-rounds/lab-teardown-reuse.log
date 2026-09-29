@@ -1,0 +1,17 @@
+review configured: task=x class=security owner=reviewer family=codex
+review routed: task=x round=1 head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa pr=- owner=reviewer class=security family=codex receipt=a2aa92b2021add7e
+before teardown:
+x.review-cap-escalated
+x.review-rounds
+x.review-route-attention
+$ fm-teardown.sh x --force
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.1RBTRf
+/tmp/fm-lab.1RBTRf/git/project: already current
+teardown x complete (window lab:fm-x, worktree /tmp/fm-lab.1RBTRf/git/wt)
+Backlog: x just finished (this home keeps no markdown backlog at /tmp/fm-lab.1RBTRf/data/backlog.md). Update /tmp/fm-lab.1RBTRf/data/backlog.md - move x to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[rc=0]
+after teardown:
+(no x.* state left)
+--- reuse id x:
+review configured: task=x class=security owner=reviewer family=codex
+[rc=0]
