@@ -1,0 +1,23 @@
+# Drain-side suppression with the real watcher + drain in lab FM_HOME (/tmp/fm-lab.gtnlNi)
+## g-late is live (status 'working: shipping'); its check prints 'scheduled workflow failed on main'
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/g-late.check.sh: scheduled workflow failed on main
+watcher rc=0
+## h-live (status 'working: nightly') queues the same notice
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/h-live.check.sh: scheduled workflow failed on main
+watcher rc=0
+
+## queue before drain:
+5	check	/tmp/fm-lab.gtnlNi/state/g-late.check.sh	check: /tmp/fm-lab.gtnlNi/state/g-late.check.sh: scheduled workflow failed on main
+6	check	/tmp/fm-lab.gtnlNi/state/h-live.check.sh	check: /tmp/fm-lab.gtnlNi/state/h-live.check.sh: scheduled workflow failed on main
+
+## g-late now merges and closes: 'done: PR merged' + v1 merge receipt; h-live stays working
+## drain stdout:
+WAKE TERMINAL NOTICES SUPPRESSED: 1 repeated terminal notice(s) for merged, closed task(s).
+1790713181	6	check	/tmp/fm-lab.gtnlNi/state/h-live.check.sh	check: /tmp/fm-lab.gtnlNi/state/h-live.check.sh: scheduled workflow failed on main
+g-late done: PR merged
+## drain stderr:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 6 --recovery-generation 2513418.1790713176.TF9wqq
+ack rc=0
+## queue after ack: 0 bytes

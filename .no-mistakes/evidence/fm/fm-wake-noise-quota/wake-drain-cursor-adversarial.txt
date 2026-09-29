@@ -1,0 +1,9 @@
+## cursor file holds garbage
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-35 of 80):
+## cursor file is a symlink to a v2 cursor naming lab-task-50
+rc=0
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-35 of 80):
+cursor after: -rw------- v2	lab-task-35	choice-35
+## cursor names a task/key that has since closed (lab-task-20 resolved); resume at the next row
+OPEN DECISIONS (still open, folded from the durable status logs - page 20-54 of 79):
+lab-task-21 [key=choice-21] needs-decision: pick an option for the lab decision number 21 with some extra words

@@ -1,0 +1,47 @@
+# Real bin/fm-watch.sh + bin/fm-wake-drain.sh in a disposable lab FM_HOME (/tmp/fm-lab.gtnlNi).
+# a-terminal: status 'done: PR merged' + valid v1 merge marker; its check prints 'scheduled workflow failed on main' and stays registered for every run.
+
+## run 1: plus b-resumed (status done -> 'working: fix nightly', valid v1 marker, same payload)
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/b-resumed.check.sh: scheduled workflow failed on main
+watcher rc=0
+drain stdout (queue rows presented):
+check	/tmp/fm-lab.gtnlNi/state/b-resumed.check.sh	check: /tmp/fm-lab.gtnlNi/state/b-resumed.check.sh: scheduled workflow failed on main
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+a-terminal done: PR merged
+c-badmark done: PR merged
+d-symlink done: PR merged
+e-bot done: PR merged
+f-other done: PR merged
+(acknowledged through 1)
+
+## run 2: plus c-badmark (status done, marker file first line 'stale leftover')
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/c-badmark.check.sh: scheduled workflow failed on main
+watcher rc=0
+drain stdout (queue rows presented):
+check	/tmp/fm-lab.gtnlNi/state/c-badmark.check.sh	check: /tmp/fm-lab.gtnlNi/state/c-badmark.check.sh: scheduled workflow failed on main
+(acknowledged through 2)
+
+## run 3: plus d-symlink (status done, marker is a symlink to a valid v1 receipt)
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/d-symlink.check.sh: scheduled workflow failed on main
+watcher rc=0
+drain stdout (queue rows presented):
+check	/tmp/fm-lab.gtnlNi/state/d-symlink.check.sh	check: /tmp/fm-lab.gtnlNi/state/d-symlink.check.sh: scheduled workflow failed on main
+(acknowledged through 3)
+
+## run 4: plus e-bot (terminal + v1 marker, 'bot approval for already merged PR' -> expect suppressed) and f-other (terminal + v1 marker, unrelated 'deploy health check red' -> expect loud)
+watcher stdout:
+check: /tmp/fm-lab.gtnlNi/state/f-other.check.sh: deploy health check red
+watcher rc=0
+drain stdout (queue rows presented):
+check	/tmp/fm-lab.gtnlNi/state/f-other.check.sh	check: /tmp/fm-lab.gtnlNi/state/f-other.check.sh: deploy health check red
+(acknowledged through 4)
+
+## watcher triage log: suppression receipts
+      1 suppressed a repeated terminal notice from /tmp/fm-lab.gtnlNi/state/a-terminal.check.sh for a merged, closed task
+      1 suppressed a repeated terminal notice from /tmp/fm-lab.gtnlNi/state/a-terminal.check.sh for a merged, closed task
+      1 suppressed a repeated terminal notice from /tmp/fm-lab.gtnlNi/state/a-terminal.check.sh for a merged, closed task
+      1 suppressed a repeated terminal notice from /tmp/fm-lab.gtnlNi/state/a-terminal.check.sh for a merged, closed task
+      1 suppressed a repeated terminal notice from /tmp/fm-lab.gtnlNi/state/e-bot.check.sh for a merged, closed task

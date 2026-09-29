@@ -1,0 +1,138 @@
+## drain 1 (80 open decisions in a fresh lab FM_HOME)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-35 of 80):
+lab-task-01 [key=choice-01] needs-decision: pick an option for the lab decision number 01 with some extra words
+lab-task-02 [key=choice-02] needs-decision: pick an option for the lab decision number 02 with some extra words
+lab-task-03 [key=choice-03] needs-decision: pick an option for the lab decision number 03 with some extra words
+lab-task-04 [key=choice-04] needs-decision: pick an option for the lab decision number 04 with some extra words
+lab-task-05 [key=choice-05] needs-decision: pick an option for the lab decision number 05 with some extra words
+lab-task-06 [key=choice-06] needs-decision: pick an option for the lab decision number 06 with some extra words
+lab-task-07 [key=choice-07] needs-decision: pick an option for the lab decision number 07 with some extra words
+lab-task-08 [key=choice-08] needs-decision: pick an option for the lab decision number 08 with some extra words
+lab-task-09 [key=choice-09] needs-decision: pick an option for the lab decision number 09 with some extra words
+lab-task-10 [key=choice-10] needs-decision: pick an option for the lab decision number 10 with some extra words
+lab-task-11 [key=choice-11] needs-decision: pick an option for the lab decision number 11 with some extra words
+lab-task-12 [key=choice-12] needs-decision: pick an option for the lab decision number 12 with some extra words
+lab-task-13 [key=choice-13] needs-decision: pick an option for the lab decision number 13 with some extra words
+lab-task-14 [key=choice-14] needs-decision: pick an option for the lab decision number 14 with some extra words
+lab-task-15 [key=choice-15] needs-decision: pick an option for the lab decision number 15 with some extra words
+lab-task-16 [key=choice-16] needs-decision: pick an option for the lab decision number 16 with some extra words
+lab-task-17 [key=choice-17] needs-decision: pick an option for the lab decision number 17 with some extra words
+lab-task-18 [key=choice-18] needs-decision: pick an option for the lab decision number 18 with some extra words
+lab-task-19 [key=choice-19] needs-decision: pick an option for the lab decision number 19 with some extra words
+lab-task-20 [key=choice-20] needs-decision: pick an option for the lab decision number 20 with some extra words
+lab-task-21 [key=choice-21] needs-decision: pick an option for the lab decision number 21 with some extra words
+lab-task-22 [key=choice-22] needs-decision: pick an option for the lab decision number 22 with some extra words
+lab-task-23 [key=choice-23] needs-decision: pick an option for the lab decision number 23 with some extra words
+lab-task-24 [key=choice-24] needs-decision: pick an option for the lab decision number 24 with some extra words
+lab-task-25 [key=choice-25] needs-decision: pick an option for the lab decision number 25 with some extra words
+lab-task-26 [key=choice-26] needs-decision: pick an option for the lab decision number 26 with some extra words
+lab-task-27 [key=choice-27] needs-decision: pick an option for the lab decision number 27 with some extra words
+lab-task-28 [key=choice-28] needs-decision: pick an option for the lab decision number 28 with some extra words
+lab-task-29 [key=choice-29] needs-decision: pick an option for the lab decision number 29 with some extra words
+lab-task-30 [key=choice-30] needs-decision: pick an option for the lab decision number 30 with some extra words
+lab-task-31 [key=choice-31] needs-decision: pick an option for the lab decision number 31 with some extra words
+lab-task-32 [key=choice-32] needs-decision: pick an option for the lab decision number 32 with some extra words
+lab-task-33 [key=choice-33] needs-decision: pick an option for the lab decision number 33 with some extra words
+lab-task-34 [key=choice-34] needs-decision: pick an option for the lab decision number 34 with some extra words
+lab-task-35 [key=choice-35] needs-decision: pick an option for the lab decision number 35 with some extra words
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+rc=0 cursor=v2	lab-task-35	choice-35
+
+## churn between drains: resolve lab-task-05, open new lab-task-00
+## drain 2
+OPEN DECISIONS (still open, folded from the durable status logs - page 36-70 of 80):
+lab-task-36 [key=choice-36] needs-decision: pick an option for the lab decision number 36 with some extra words
+lab-task-37 [key=choice-37] needs-decision: pick an option for the lab decision number 37 with some extra words
+lab-task-38 [key=choice-38] needs-decision: pick an option for the lab decision number 38 with some extra words
+lab-task-39 [key=choice-39] needs-decision: pick an option for the lab decision number 39 with some extra words
+lab-task-40 [key=choice-40] needs-decision: pick an option for the lab decision number 40 with some extra words
+lab-task-41 [key=choice-41] needs-decision: pick an option for the lab decision number 41 with some extra words
+lab-task-42 [key=choice-42] needs-decision: pick an option for the lab decision number 42 with some extra words
+lab-task-43 [key=choice-43] needs-decision: pick an option for the lab decision number 43 with some extra words
+lab-task-44 [key=choice-44] needs-decision: pick an option for the lab decision number 44 with some extra words
+lab-task-45 [key=choice-45] needs-decision: pick an option for the lab decision number 45 with some extra words
+lab-task-46 [key=choice-46] needs-decision: pick an option for the lab decision number 46 with some extra words
+lab-task-47 [key=choice-47] needs-decision: pick an option for the lab decision number 47 with some extra words
+lab-task-48 [key=choice-48] needs-decision: pick an option for the lab decision number 48 with some extra words
+lab-task-49 [key=choice-49] needs-decision: pick an option for the lab decision number 49 with some extra words
+lab-task-50 [key=choice-50] needs-decision: pick an option for the lab decision number 50 with some extra words
+lab-task-51 [key=choice-51] needs-decision: pick an option for the lab decision number 51 with some extra words
+lab-task-52 [key=choice-52] needs-decision: pick an option for the lab decision number 52 with some extra words
+lab-task-53 [key=choice-53] needs-decision: pick an option for the lab decision number 53 with some extra words
+lab-task-54 [key=choice-54] needs-decision: pick an option for the lab decision number 54 with some extra words
+lab-task-55 [key=choice-55] needs-decision: pick an option for the lab decision number 55 with some extra words
+lab-task-56 [key=choice-56] needs-decision: pick an option for the lab decision number 56 with some extra words
+lab-task-57 [key=choice-57] needs-decision: pick an option for the lab decision number 57 with some extra words
+lab-task-58 [key=choice-58] needs-decision: pick an option for the lab decision number 58 with some extra words
+lab-task-59 [key=choice-59] needs-decision: pick an option for the lab decision number 59 with some extra words
+lab-task-60 [key=choice-60] needs-decision: pick an option for the lab decision number 60 with some extra words
+lab-task-61 [key=choice-61] needs-decision: pick an option for the lab decision number 61 with some extra words
+lab-task-62 [key=choice-62] needs-decision: pick an option for the lab decision number 62 with some extra words
+lab-task-63 [key=choice-63] needs-decision: pick an option for the lab decision number 63 with some extra words
+lab-task-64 [key=choice-64] needs-decision: pick an option for the lab decision number 64 with some extra words
+lab-task-65 [key=choice-65] needs-decision: pick an option for the lab decision number 65 with some extra words
+lab-task-66 [key=choice-66] needs-decision: pick an option for the lab decision number 66 with some extra words
+lab-task-67 [key=choice-67] needs-decision: pick an option for the lab decision number 67 with some extra words
+lab-task-68 [key=choice-68] needs-decision: pick an option for the lab decision number 68 with some extra words
+lab-task-69 [key=choice-69] needs-decision: pick an option for the lab decision number 69 with some extra words
+lab-task-70 [key=choice-70] needs-decision: pick an option for the lab decision number 70 with some extra words
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+rc=0 cursor=v2	lab-task-70	choice-70
+
+## drain 3 (tail)
+OPEN DECISIONS (still open, folded from the durable status logs - page 71-80 of 80):
+lab-task-71 [key=choice-71] needs-decision: pick an option for the lab decision number 71 with some extra words
+lab-task-72 [key=choice-72] needs-decision: pick an option for the lab decision number 72 with some extra words
+lab-task-73 [key=choice-73] needs-decision: pick an option for the lab decision number 73 with some extra words
+lab-task-74 [key=choice-74] needs-decision: pick an option for the lab decision number 74 with some extra words
+lab-task-75 [key=choice-75] needs-decision: pick an option for the lab decision number 75 with some extra words
+lab-task-76 [key=choice-76] needs-decision: pick an option for the lab decision number 76 with some extra words
+lab-task-77 [key=choice-77] needs-decision: pick an option for the lab decision number 77 with some extra words
+lab-task-78 [key=choice-78] needs-decision: pick an option for the lab decision number 78 with some extra words
+lab-task-79 [key=choice-79] needs-decision: pick an option for the lab decision number 79 with some extra words
+lab-task-80 [key=choice-80] needs-decision: pick an option for the lab decision number 80 with some extra words
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+rc=0 cursor=none
+
+## drain 4 (after the tail: wraps to page 1, which now includes the newly opened lab-task-00)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-35 of 80):
+lab-task-00 [key=fresh] needs-decision: a brand new decision opened between drains
+lab-task-01 [key=choice-01] needs-decision: pick an option for the lab decision number 01 with some extra words
+lab-task-02 [key=choice-02] needs-decision: pick an option for the lab decision number 02 with some extra words
+lab-task-03 [key=choice-03] needs-decision: pick an option for the lab decision number 03 with some extra words
+lab-task-04 [key=choice-04] needs-decision: pick an option for the lab decision number 04 with some extra words
+lab-task-06 [key=choice-06] needs-decision: pick an option for the lab decision number 06 with some extra words
+lab-task-07 [key=choice-07] needs-decision: pick an option for the lab decision number 07 with some extra words
+lab-task-08 [key=choice-08] needs-decision: pick an option for the lab decision number 08 with some extra words
+lab-task-09 [key=choice-09] needs-decision: pick an option for the lab decision number 09 with some extra words
+lab-task-10 [key=choice-10] needs-decision: pick an option for the lab decision number 10 with some extra words
+lab-task-11 [key=choice-11] needs-decision: pick an option for the lab decision number 11 with some extra words
+lab-task-12 [key=choice-12] needs-decision: pick an option for the lab decision number 12 with some extra words
+lab-task-13 [key=choice-13] needs-decision: pick an option for the lab decision number 13 with some extra words
+lab-task-14 [key=choice-14] needs-decision: pick an option for the lab decision number 14 with some extra words
+lab-task-15 [key=choice-15] needs-decision: pick an option for the lab decision number 15 with some extra words
+lab-task-16 [key=choice-16] needs-decision: pick an option for the lab decision number 16 with some extra words
+lab-task-17 [key=choice-17] needs-decision: pick an option for the lab decision number 17 with some extra words
+lab-task-18 [key=choice-18] needs-decision: pick an option for the lab decision number 18 with some extra words
+lab-task-19 [key=choice-19] needs-decision: pick an option for the lab decision number 19 with some extra words
+lab-task-20 [key=choice-20] needs-decision: pick an option for the lab decision number 20 with some extra words
+lab-task-21 [key=choice-21] needs-decision: pick an option for the lab decision number 21 with some extra words
+lab-task-22 [key=choice-22] needs-decision: pick an option for the lab decision number 22 with some extra words
+lab-task-23 [key=choice-23] needs-decision: pick an option for the lab decision number 23 with some extra words
+lab-task-24 [key=choice-24] needs-decision: pick an option for the lab decision number 24 with some extra words
+lab-task-25 [key=choice-25] needs-decision: pick an option for the lab decision number 25 with some extra words
+lab-task-26 [key=choice-26] needs-decision: pick an option for the lab decision number 26 with some extra words
+lab-task-27 [key=choice-27] needs-decision: pick an option for the lab decision number 27 with some extra words
+lab-task-28 [key=choice-28] needs-decision: pick an option for the lab decision number 28 with some extra words
+lab-task-29 [key=choice-29] needs-decision: pick an option for the lab decision number 29 with some extra words
+lab-task-30 [key=choice-30] needs-decision: pick an option for the lab decision number 30 with some extra words
+lab-task-31 [key=choice-31] needs-decision: pick an option for the lab decision number 31 with some extra words
+lab-task-32 [key=choice-32] needs-decision: pick an option for the lab decision number 32 with some extra words
+lab-task-33 [key=choice-33] needs-decision: pick an option for the lab decision number 33 with some extra words
+lab-task-34 [key=choice-34] needs-decision: pick an option for the lab decision number 34 with some extra words
+lab-task-35 [key=choice-35] needs-decision: pick an option for the lab decision number 35 with some extra words
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+cursor=v2	lab-task-35	choice-35
