@@ -127,7 +127,7 @@ render_export_dom() {
       --no-sandbox \
       --disable-dev-shm-usage \
       --disable-background-networking \
-      --virtual-time-budget=2000 \
+      --virtual-time-budget=5000 \
       --dump-dom \
       "file://$source_file" >"$out_file" 2>"$log" &
     pid=$!
