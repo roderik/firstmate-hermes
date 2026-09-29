@@ -1152,12 +1152,11 @@ An absent rules file, a default-only file, or `rules: []` returns the non-clear 
 
 **Checks performed after the answer**
 
-When quota consideration is enabled, after the answer code applies all remaining checks and ranking:
+After the answer, code applies all remaining checks and ranking:
 
-- The confidence floor and the matched rule's `approval` and `floor`.
-- Each candidate's `provider` and `floor`.
-- Every applicable account-wide and model/product row from one `quota-axi --json` snapshot.
-- The numeric `spendPriority` argmax over candidates, using each candidate's limiting row.
+- The confidence floor, the runner-up fallback, and the matched rule's `approval`; these apply whether or not quota consideration is enabled.
+- When quota consideration is enabled, the matched rule's `floor`, each candidate's `provider` and `floor`, every applicable account-wide and model/product row from one `quota-axi --json` snapshot, and the numeric `spendPriority` argmax over candidates, using each candidate's limiting row.
+- With `FM_QUOTA_ROUTING=off`, those quota-dependent checks are skipped and the first configured eligible profile is chosen.
 
 The [shared quota library](../bin/fm-quota-axi-lib.sh) accepts schema 5 and schema 6 and implements the [account-matching contract](../.agents/skills/quota-array-dispatch/SKILL.md#1-eligibility).
 

@@ -1994,6 +1994,31 @@ fm_wake_clean_field() {
   LC_ALL=C tr '\t\r\n' '   '
 }
 
+# fm_wake_terminal_notice_suppressed <check-key> <payload>
+# A scheduled-workflow failure or bot-approval check notice for a task whose PR
+# has an authoritative v1 merged receipt and whose current status is terminal is
+# stale terminal noise. Succeeds only with that full proof; any uncertainty
+# fails so the notice stays loud. The watcher and the drain share this owner.
+fm_wake_terminal_notice_suppressed() {
+  local key=$1 payload=$2 task marker marker_version status_file last_status
+  case "$key" in
+    *.check.sh) task=${key##*/}; task=${task%.check.sh} ;;
+    *) return 1 ;;
+  esac
+  printf '%s' "$payload" | grep -Eiq '(scheduled[[:space:]_-]*workflow.*(fail|red)|bot.*approv|approv.*bot|approval.*(already|merged)|approved.*(already|merged))' || return 1
+  marker="$STATE/$task.pr-poll-merge-notified"
+  [ -f "$marker" ] && [ ! -L "$marker" ] || return 1
+  marker_version=
+  IFS= read -r marker_version < "$marker" 2>/dev/null || return 1
+  [ "$marker_version" = fm-pr-poll-merge-notified-v1 ] || return 1
+  status_file="$STATE/$task.status"
+  [ -f "$status_file" ] && [ ! -L "$status_file" ] || return 1
+  last_status=$(awk 'NF { last=$0 } END { print last }' "$status_file" 2>/dev/null) || return 1
+  _fm_wake_require_classify
+  case "$(status_line_verb "$last_status")" in done|failed) return 0 ;; esac
+  return 1
+}
+
 fm_wake_append() {
   local status=0
   fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"

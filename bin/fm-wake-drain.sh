@@ -1105,28 +1105,15 @@ awk -F '\t' -v seqs="$ACTOR_ROWS_FILE" '
 RAW_ROWS=$(fm_wake_print_deduped "$DRAIN_VIEW_TMP") || exit "$?"
 rm -f -- "$DRAIN_VIEW_TMP" || exit 1
 DRAIN_VIEW_TMP=
-# A scheduled-workflow failure that arrives after its PR has an authoritative
-# merged receipt and its task is terminal is stale terminal noise. Keep the row
-# in the durable queue and consume it with this wake, but omit the repeated
-# payload from the worker-facing turn. Any uncertainty keeps the notice loud.
+# Stale terminal notices (bin/fm-wake-lib.sh fm_wake_terminal_notice_suppressed)
+# stay in the durable queue and are consumed with this wake, but their repeated
+# payload is omitted from the worker-facing turn.
 SUPPRESSED_TERMINAL_SEQS=
 SUPPRESSED_TERMINAL_COUNT=0
 while IFS=$(printf '\t') read -r _epoch seq kind key payload; do
   [ "$kind" = check ] || continue
-  case "$key" in
-    *.check.sh) task=${key##*/}; task=${task%.check.sh} ;;
-    *) continue ;;
-  esac
-  printf '%s' "$payload" | grep -Eiq '(scheduled[[:space:]_-]*workflow.*(fail|red)|bot.*approv|approv.*bot|approval.*(already|merged)|approved.*(already|merged))' || continue
-  marker="$STATE/$task.pr-poll-merge-notified"
-  [ -f "$marker" ] && [ ! -L "$marker" ] || continue
-  marker_version=
-  IFS= read -r marker_version < "$marker" 2>/dev/null || continue
-  [ "$marker_version" = fm-pr-poll-merge-notified-v1 ] || continue
-  [ -f "$STATE/$task.status" ] && [ ! -L "$STATE/$task.status" ] || continue
-  last_status=$(awk 'NF { last=$0 } END { print last }' "$STATE/$task.status" 2>/dev/null) || continue
-  case "$(status_line_verb "$last_status")" in done|failed) ;; *) continue ;; esac
-  SUPPRESSED_TERMINAL_SEQS="${SUPPRESSED_TERMINAL_SEQS}${seq}"$'\n'
+  fm_wake_terminal_notice_suppressed "$key" "$payload" || continue
+  SUPPRESSED_TERMINAL_SEQS="${SUPPRESSED_TERMINAL_SEQS}${seq} "
   SUPPRESSED_TERMINAL_COUNT=$((SUPPRESSED_TERMINAL_COUNT + 1))
 done <<EOF
 $RAW_ROWS
@@ -1140,15 +1127,13 @@ esac
 if [ "$SUPPRESSED_TERMINAL_COUNT" -gt 0 ]; then
   printf 'WAKE TERMINAL NOTICES SUPPRESSED: %s repeated terminal notice(s) for merged, closed task(s).\n' "$SUPPRESSED_TERMINAL_COUNT"
 fi
-if [ -n "$RAW_ROWS" ]; then
-  while IFS= read -r row; do
-    [ -n "$row" ] || continue
-    seq=$(printf '%s\n' "$row" | awk -F '\t' '{print $2}')
-    if printf '%s' "$SUPPRESSED_TERMINAL_SEQS" | grep -Fqx "$seq"; then continue; fi
-    printf '%s\n' "$row" || exit "$?"
-  done <<EOF
-$RAW_ROWS
-EOF
+if [ "$SUPPRESSED_TERMINAL_COUNT" -eq 0 ]; then
+  [ -z "$RAW_ROWS" ] || printf '%s\n' "$RAW_ROWS" || exit "$?"
+else
+  printf '%s\n' "$RAW_ROWS" | awk -F '\t' -v seqs="$SUPPRESSED_TERMINAL_SEQS" '
+    BEGIN { n = split(seqs, s, " "); for (i = 1; i <= n; i++) skip[s[i]] = 1 }
+    NF && !($2 in skip)
+  ' || exit "$?"
 fi
 fm_recovery_marker_snapshot "$RECOVERY_MARKER" || exit 1
 RECOVERY_MARKER_TOKEN=$FM_RECOVERY_MARKER_TOKEN

@@ -178,6 +178,47 @@ SH
   pass "registered custom check output is queued before cadence suppression"
 }
 
+test_watcher_suppresses_terminal_check_notice_before_wake() {
+  local dir state fakebin out drain_out terminal_check live_check
+  dir=$(make_case check-terminal)
+  state="$dir/state"
+  fakebin="$dir/fakebin"
+  out="$dir/watch.out"
+  drain_out="$dir/drain.out"
+  terminal_check="$state/a-terminal.check.sh"
+  live_check="$state/b-live.check.sh"
+  printf 'done: PR merged\n' > "$state/a-terminal.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
+    > "$state/a-terminal.pr-poll-merge-notified"
+  printf 'working: fix nightly\n' > "$state/b-live.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 8 \
+    > "$state/b-live.pr-poll-merge-notified"
+  for check_file in "$terminal_check" "$live_check"; do
+    cat > "$check_file" <<'SH'
+#!/usr/bin/env bash
+printf 'scheduled workflow failed\n'
+SH
+    chmod 0700 "$check_file"
+  done
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-check-register.sh" a-terminal >/dev/null \
+    || fail "could not register terminal custom check"
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-check-register.sh" b-live >/dev/null \
+    || fail "could not register live custom check"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=0 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  wait_for_exit "$!" 40 || fail "watcher did not exit for the live check output"
+  grep -F "check: $live_check: scheduled workflow failed" "$out" >/dev/null \
+    || fail "watcher did not wake for a notice whose task is not terminal"
+  if grep -F "$terminal_check" "$out" >/dev/null; then
+    fail "watcher woke with a terminal notice for a merged, closed task"
+  fi
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after terminal check failed"
+  grep -F "$live_check" "$drain_out" >/dev/null || fail "live check notice was not queued"
+  if grep -F "$terminal_check" "$drain_out" >/dev/null; then
+    fail "terminal check notice was queued for a merged, closed task"
+  fi
+  pass "watcher suppresses terminal check notices before queueing or waking"
+}
+
 test_atomic_double_drain() {
   local dir state out1 out2 count1 count2 sequence generation leftover
   dir=$(make_case double-drain)
@@ -3453,6 +3494,7 @@ test_signal_catchup_without_running_watcher
 test_stale_enqueue_before_suppressor
 test_not_working_stale_enqueue_before_suppressor
 test_check_output_is_queued
+test_watcher_suppresses_terminal_check_notice_before_wake
 test_atomic_double_drain
 test_drain_dedupes_obvious_duplicates
 test_drain_suppresses_terminal_bot_notice_for_merged_task
