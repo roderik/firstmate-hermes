@@ -1,0 +1,48 @@
+# R7 resolver: real bin/fm-dispatch-resolve.sh in lab home; only the typesafe.ai HTTP answer is stubbed (curl), quota-axi is the REAL installed binary wrapped to log calls
+## rules: rule_1 use = [claude/sonnet (listed first), codex/gpt-5.6-sol]
+
+## A) default (quota consideration enabled)
+dispatch-resolve:
+  status: clear
+  model: jev-1.13.0   latency_ms: 5   tokens: 400/40
+  rule: rule_1 (A simple bug fix with a stated root cause.)   confidence: 0.93
+  probabilities: rule_1=0.93 default=0.07
+  note: rule matched
+  note: 1 eligible candidate(s) unranked (claude)
+  candidate: claude:sonnet  provider=claude  -> eligible, unranked: provider claude unmeasured (unknown): disclosed uncertainty
+  candidate: codex:gpt-5.6-sol  provider=codex  scope=all_models  remaining=49%  spendPriority=-0.6123  runway=projected_exhaustion  -> eligible
+  profile: --harness 'codex' --model 'gpt-5.6-sol'
+rc=0
+quota-axi calls: quota-axi --json
+
+## B) FM_QUOTA_ROUTING=off (captain preference disables quota consideration)
+rc=0
+dispatch-resolve:
+  status: clear
+  model: jev-1.13.0   latency_ms: 6   tokens: 400/40
+  rule: rule_1 (A simple bug fix with a stated root cause.)   confidence: 0.93
+  probabilities: rule_1=0.93 default=0.07
+  note: quota consideration disabled; using configured profile order
+  candidate: claude:sonnet  -> eligible
+  candidate: codex:gpt-5.6-sol  -> eligible
+  profile: --harness 'claude' --model 'sonnet' --effort 'high'
+quota-axi calls: none
+quota vocabulary in output (spendPriority|remaining|runway|pct|%): 0
+
+## C) adversarial: FM_QUOTA_ROUTING=off, quota-axi absent from PATH (not found), profiles without provider, rule with approval=captain and a quota floor
+dispatch-resolve:
+  status: escalate
+  model: jev-1.13.0   latency_ms: 4   tokens: 400/40
+  rule: rule_1 (A simple bug fix with a stated root cause.)   confidence: 0.93
+  probabilities: rule_1=0.93 default=0.07
+  reason: rule requires the captain's explicit approval before dispatch
+  candidate: codex:gpt-5.6-sol  -> eligible
+  candidate: claude:sonnet  -> eligible
+rc=0
+
+## D) same rules with quota enabled (control)
+dispatch-resolve: error (quota-axi not installed)
+dispatch-resolve:
+  status: error
+  reason: quota-axi not installed
+rc=0

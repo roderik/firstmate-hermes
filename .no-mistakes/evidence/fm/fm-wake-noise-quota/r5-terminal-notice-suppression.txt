@@ -1,0 +1,60 @@
+# R5 terminal-notice suppression: real bin/fm-wake-drain.sh in disposable lab home
+## fixtures
+t-merged   status-last=done: PR merged        marker=fm-pr-poll-merge-notified-v1
+t-resumed  status-last=working: fix nightly   marker=fm-pr-poll-merge-notified-v1
+t-badmark  status-last=done: PR merged        marker=stale leftover
+t-symmark  status-last=done: PR merged        marker=symlink
+t-nomark   status-last=done: PR merged        marker=none
+t-live     status-last=working: still going   marker=fm-pr-poll-merge-notified-v1
+## queued wake rows (.wake-queue)
+1	check	/tmp/fm-lab.UVGoKw/state/t-merged.check.sh	check: t-merged.check.sh: scheduled workflow failed on main (nightly)
+2	check	/tmp/fm-lab.UVGoKw/state/t-merged.check.sh	check: t-merged.check.sh: bot approval for already merged PR
+3	check	/tmp/fm-lab.UVGoKw/state/t-resumed.check.sh	check: t-resumed.check.sh: scheduled workflow failed
+4	check	/tmp/fm-lab.UVGoKw/state/t-badmark.check.sh	check: t-badmark.check.sh: scheduled workflow failed
+5	check	/tmp/fm-lab.UVGoKw/state/t-symmark.check.sh	check: t-symmark.check.sh: scheduled workflow failed
+6	check	/tmp/fm-lab.UVGoKw/state/t-nomark.check.sh	check: t-nomark.check.sh: scheduled workflow failed
+7	check	/tmp/fm-lab.UVGoKw/state/t-live.check.sh	check: t-live.check.sh: scheduled workflow failed
+8	check	/tmp/fm-lab.UVGoKw/state/t-merged.check.sh	check: t-merged.check.sh: CI red on new commit
+
+## drain stdout
+rc=0
+1790711090	8	check	/tmp/fm-lab.UVGoKw/state/t-merged.check.sh	check: t-merged.check.sh: CI red on new commit
+1790711090	3	check	/tmp/fm-lab.UVGoKw/state/t-resumed.check.sh	check: t-resumed.check.sh: scheduled workflow failed
+1790711090	4	check	/tmp/fm-lab.UVGoKw/state/t-badmark.check.sh	check: t-badmark.check.sh: scheduled workflow failed
+1790711090	5	check	/tmp/fm-lab.UVGoKw/state/t-symmark.check.sh	check: t-symmark.check.sh: scheduled workflow failed
+1790711090	6	check	/tmp/fm-lab.UVGoKw/state/t-nomark.check.sh	check: t-nomark.check.sh: scheduled workflow failed
+1790711090	7	check	/tmp/fm-lab.UVGoKw/state/t-live.check.sh	check: t-live.check.sh: scheduled workflow failed
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+t-badmark done: PR merged
+t-merged done: PR merged
+t-nomark done: PR merged
+t-symmark done: PR merged
+## drain stderr
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 8 --recovery-generation 3649992.1790711090.4Hz8pw
+
+## acknowledge through 8
+ack rc=0
+queue rows remaining: 0
+0
+
+# Round 2 (after ack emptied the queue): distinct keys so dedupe does not collapse the suppression-eligible rows
+## queued wake rows
+9	check	/tmp/fm-lab.UVGoKw/state/t-merged.check.sh	check: t-merged.check.sh: scheduled workflow failed on main (nightly)
+10	check	/tmp/fm-lab.UVGoKw/state/t-merged2.check.sh	check: t-merged2.check.sh: bot approval for already merged PR
+11	check	/tmp/fm-lab.UVGoKw/state/t-resumed.check.sh	check: t-resumed.check.sh: scheduled workflow failed
+12	check	/tmp/fm-lab.UVGoKw/state/t-badmark.check.sh	check: t-badmark.check.sh: scheduled workflow failed
+13	check	/tmp/fm-lab.UVGoKw/state/t-symmark.check.sh	check: t-symmark.check.sh: scheduled workflow failed
+## drain stdout
+rc=0
+WAKE TERMINAL NOTICES SUPPRESSED: 2 repeated terminal notice(s) for merged, closed task(s).
+1790711105	11	check	/tmp/fm-lab.UVGoKw/state/t-resumed.check.sh	check: t-resumed.check.sh: scheduled workflow failed
+1790711105	12	check	/tmp/fm-lab.UVGoKw/state/t-badmark.check.sh	check: t-badmark.check.sh: scheduled workflow failed
+1790711105	13	check	/tmp/fm-lab.UVGoKw/state/t-symmark.check.sh	check: t-symmark.check.sh: scheduled workflow failed
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+t-merged2 done: PR merged
+## drain stderr
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 13 --recovery-generation 3676490.1790711105.l4Lk7a
+## acknowledge through 13 (covers suppressed rows too)
+ack rc=0
+queue rows remaining: 0
+## symlink marker target untouched: fm-pr-poll-merge-notified-v1

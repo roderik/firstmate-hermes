@@ -1,0 +1,65 @@
+# R5 pagination: real bin/fm-wake-drain.sh in disposable lab home (bin/fm-lab-home.sh) with 80 open needs-decision tasks
+--- drain 1 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-40 of 80):
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-01 [key=page-01] needs-decision: choose the bounded page entry 01 for the pagination scenario
+last row:  task-40 [key=page-40] needs-decision: choose the bounded page entry 40 for the pagination scenario
+rows shown: 40; bytes of rows: 3960
+cursor file: v2 task-40 page-40
+
+## churn between drains: open new decision task-00 (sorts before cursor) and resolve task-05
+--- drain 2 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 41-80 of 80):
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-41 [key=page-41] needs-decision: choose the bounded page entry 41 for the pagination scenario
+last row:  task-80 [key=page-80] needs-decision: choose the bounded page entry 80 for the pagination scenario
+rows shown: 40; bytes of rows: 3960
+cursor file: <none>
+--- drain 3 (rc=0) - wrapped back to start
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-40 of 80):
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-00 [key=fresh] needs-decision: opened between drains
+last row:  task-40 [key=page-40] needs-decision: choose the bounded page entry 40 for the pagination scenario
+rows shown: 40; bytes of rows: 3919
+cursor file: v2 task-40 page-40
+
+## adversarial: cursor file is a symlink to /etc/hostname
+--- drain 4 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-40 of 80):
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-00 [key=fresh] needs-decision: opened between drains
+last row:  task-40 [key=page-40] needs-decision: choose the bounded page entry 40 for the pagination scenario
+rows shown: 40; bytes of rows: 3919
+cursor file: v2 task-40 page-40
+-rw------- 1 roderik roderik 19 Sep 29 21:38 /tmp/fm-lab.UVGoKw/state/.open-decisions-page
+/etc/hostname still: daystrom
+
+## adversarial: cursor file holds garbage
+--- drain 5 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-40 of 80):
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-00 [key=fresh] needs-decision: opened between drains
+last row:  task-40 [key=page-40] needs-decision: choose the bounded page entry 40 for the pagination scenario
+rows shown: 40; bytes of rows: 3919
+cursor file: v2 task-40 page-40
+
+## adversarial: cursor names a task that has since closed (task-40 resolved) -> resumes at next row in order
+--- drain 6 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 40-79 of 79):
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+first row: task-41 [key=page-41] needs-decision: choose the bounded page entry 41 for the pagination scenario
+last row:  task-80 [key=page-80] needs-decision: choose the bounded page entry 80 for the pagination scenario
+rows shown: 40; bytes of rows: 3960
+cursor file: <none>
+
+## small fleet: 2 open decisions fit in one page
+--- drain 7 (rc=0)
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-2 of 2):
+t1 [key=a] needs-decision: one
+t2 [key=b] needs-decision: two
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+cursor file present? no
