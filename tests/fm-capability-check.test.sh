@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source=tests/lib.sh
 set -u
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 SCRIPT="$ROOT/bin/fm-capability-check.sh"
