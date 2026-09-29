@@ -1,0 +1,35 @@
+## before: build review state
+build.review-cap-escalated
+build.review-rounds
+$ fm-teardown.sh build --force
+REFUSED: task build has a missing, empty, or ambiguous worktree identity; preserving task state.
+[exit=1]
+## after
+build.meta
+build.review-cap-escalated
+build.review-rounds
+build.status
+## re-spawn same id and reconfigure review (previously died 'review has already started')
+fm-review-route: review has already started
+[exit=1]
+## second attempt with real project+worktree; before:
+build.meta
+build.review-cap-escalated
+build.review-rounds
+build.status
+$ fm-teardown.sh build --force
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+A new version of treehouse is available: v2.3.0 → v3.1.0
+Run "treehouse update" to update
+
+worktree /tmp/fm-lab.ANXIaF/data/wt-build is not managed by treehouse
+error: treehouse return failed for worktree /tmp/fm-lab.ANXIaF/data/wt-build; teardown aborted
+[exit=1]
+## after
+build.meta
+build.review-cap-escalated
+build.review-rounds
+build.status
+## re-spawn same id and configure review
+fm-review-route: review has already started
+[exit=1]

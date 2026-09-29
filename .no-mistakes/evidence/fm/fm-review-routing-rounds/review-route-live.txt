@@ -1,0 +1,76 @@
+(HEAD 4460c90 exported to plain tree; FM_HOME=disposable lab home; reviewer secondmate endpoint = lab tmux window firstmate:fm-rev)
+## round 1: committed build head
+$ fm-review-route.sh scan build
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in firstmate:fm-rev has exited; the steer is durably recorded at /tmp/fm-lab.ANXIaF/state/rev.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=1 head=0123456789abcdef0123456789abcdef01234567 pr=- owner=rev class=security family=codex receipt=74b4873165a39d47
+[exit=0]
+## rescan same head (dedupe; no second delivery)
+$ fm-review-route.sh scan build
+review already routed: task=build head=0123456789abcdef0123456789abcdef01234567 pr=-
+[exit=0]
+## round 2: PR head
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 1123456789abcdef0123456789abcdef01234567 security codex
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in firstmate:fm-rev has exited; the steer is durably recorded at /tmp/fm-lab.ANXIaF/state/rev.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=2 head=1123456789abcdef0123456789abcdef01234567 pr=https://github.com/o/r/pull/7 owner=rev class=security family=codex receipt=cb57a4ce7ee86848
+[exit=0]
+## round 3 without blocking finding -> refused + escalated
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 security codex
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+[exit=3]
+## again (escalation not duplicated)
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 security codex
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+[exit=3]
+## cap marker
+2123456789abcdef0123456789abcdef01234567
+## wake rows mentioning cap:
+--- /tmp/fm-lab.ANXIaF/state/.wake-queue
+1790715173	1	check	review-cap-build	review cap reached: task=build pr=https://github.com/o/r/pull/7 head=2123456789abcdef0123456789abcdef01234567 class=security; file non-blocking polish as follow-up
+## adversarial: exception without correctness/security rationale
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 security codex polish-3 rename variable for style
+fm-review-route: exception must name correctness or security
+[exit=1]
+## adversarial: class mismatch
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 perf codex
+fm-review-route: request disagrees with configured review class or family
+[exit=1]
+## round 3 with blocking correctness finding
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 security codex correctness-17 blocking correctness regression in settlement
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+fm-send: doorbell not typed because the agent in firstmate:fm-rev has exited; the steer is durably recorded at /tmp/fm-lab.ANXIaF/state/rev.inbox/003.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=3 head=2123456789abcdef0123456789abcdef01234567 pr=https://github.com/o/r/pull/7 owner=rev class=security family=codex receipt=701b2181976f55f4
+[exit=0]
+## receipts (state/build.review-rounds)
+0123456789abcdef0123456789abcdef01234567	-	security	codex	74b4873165a39d47	-
+1123456789abcdef0123456789abcdef01234567	https://github.com/o/r/pull/7	security	codex	cb57a4ce7ee86848	-
+2123456789abcdef0123456789abcdef01234567	https://github.com/o/r/pull/7	security	codex	701b2181976f55f4	correctness-17
+## reviewer inbox records
+--- state/rev.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-09-29T20:52:50Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=74b4873165a39d47 Independent security review requested for task build. Review exact head 0123456789abcdef0123456789abcdef01234567, PR -. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 74b4873165a39d47.
+--- state/rev.inbox/002.msg
+schema=fm-task-inbox.v1
+at=2026-09-29T20:52:52Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=cb57a4ce7ee86848 Independent security review requested for task build. Review exact head 1123456789abcdef0123456789abcdef01234567, PR https://github.com/o/r/pull/7. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id cb57a4ce7ee86848.
+--- state/rev.inbox/003.msg
+schema=fm-task-inbox.v1
+at=2026-09-29T20:52:56Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=701b2181976f55f4 Independent security review requested for task build. Review exact head 2123456789abcdef0123456789abcdef01234567, PR https://github.com/o/r/pull/7. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 701b2181976f55f4. Blocking correctness-17: blocking correctness regression in settlement
+## reviewer pane (doorbell)
+󰕈 roderik@daystrom  …/01M3QE7AWQBYERHJD1MW0SJQSS   HEAD ?   22:52  ❯

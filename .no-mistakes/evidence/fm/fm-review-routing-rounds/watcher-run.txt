@@ -1,0 +1,1 @@
+signal: /tmp/fm-lab.ANXIaF/state/build.status /tmp/fm-lab.ANXIaF/state/ship2.status

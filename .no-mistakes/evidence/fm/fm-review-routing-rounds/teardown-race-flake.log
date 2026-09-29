@@ -1,0 +1,16 @@
+HEAD 1: not ok - teardown race: refused cleanup removed persisted authority
+BASE 1: ok - teardown cannot race merged-poll authority consumption
+HEAD 2: not ok - teardown race: refused cleanup removed persisted authority
+BASE 2: ok - teardown cannot race merged-poll authority consumption
+HEAD 3: not ok - teardown race: refused cleanup removed persisted authority
+BASE 3: ok - teardown cannot race merged-poll authority consumption
+HEAD 4: not ok - teardown race: refused cleanup removed persisted authority
+BASE 4: ok - teardown cannot race merged-poll authority consumption
+HEAD 5: not ok - teardown race: refused cleanup removed persisted authority
+BASE 5: ok - teardown cannot race merged-poll authority consumption
+HEAD 6: not ok - teardown race: refused cleanup removed persisted authority
+BASE 6: ok - teardown cannot race merged-poll authority consumption
+HEAD 7: not ok - teardown race: refused cleanup removed persisted authority
+BASE 7: ok - teardown cannot race merged-poll authority consumption
+HEAD 8: not ok - teardown race: refused cleanup removed persisted authority
+BASE 8: ok - teardown cannot race merged-poll authority consumption

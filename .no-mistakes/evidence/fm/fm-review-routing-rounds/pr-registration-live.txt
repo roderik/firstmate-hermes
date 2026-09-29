@@ -1,0 +1,81 @@
+## configure review for prtask (R2), then register same-repo PR #6162 (yolo=on)
+$ bin/fm-review-route.sh configure prtask security rev codex
+review configured: task=prtask class=security owner=rev family=codex
+[exit=0]
+$ bin/fm-pr-check.sh prtask https://github.com/kunchenguid/firstmate/pull/6162
+fm-send: doorbell not typed because the agent in firstmate:fm-rev has exited; the steer is durably recorded at /tmp/fm-lab.ANXIaF/state/rev.inbox/005.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=prtask round=1 head=51274f45b5bf3c6e57998355a2a0cc13a696d2bc pr=https://github.com/kunchenguid/firstmate/pull/6162 owner=rev class=security family=codex receipt=3878988f97ca60f3
+armed: state/prtask.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6162 task_owner=prtask head_repo=kunchenguid/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=firstmate
+[exit=0]
+--- state/prtask.meta
+kind=ship
+window=firstmate:fm-prtask
+endpoint_task_id=prtask
+worktree=/tmp/fmhead.WzDz
+project=/tmp/fmhead.WzDz
+mode=no-mistakes
+yolo=on
+review_class=security
+review_owner=rev
+review_family=codex
+task_owner=prtask
+head_repo=kunchenguid/firstmate
+base_repo=kunchenguid/firstmate
+base_ref=main
+base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272
+merge_target=kunchenguid/firstmate:main
+stacked=no
+merge_owner=firstmate
+pr=https://github.com/kunchenguid/firstmate/pull/6162
+pr_head=51274f45b5bf3c6e57998355a2a0cc13a696d2bc
+--- state/prtask.review-rounds (PR registration routed exact forge head)
+51274f45b5bf3c6e57998355a2a0cc13a696d2bc	https://github.com/kunchenguid/firstmate/pull/6162	security	codex	3878988f97ca60f3	-
+--- newest reviewer inbox record
+/tmp/fm-lab.ANXIaF/state/rev.inbox/005.msg
+schema=fm-task-inbox.v1
+at=2026-09-29T20:59:12Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=3878988f97ca60f3 Independent security review requested for task prtask. Review exact head 51274f45b5bf3c6e57998355a2a0cc13a696d2bc, PR https://github.com/kunchenguid/firstmate/pull/6162. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 3878988f97ca60f3.
+## re-register same PR (no second round)
+$ bin/fm-pr-check.sh prtask https://github.com/kunchenguid/firstmate/pull/6162
+review already routed: task=prtask head=51274f45b5bf3c6e57998355a2a0cc13a696d2bc pr=https://github.com/kunchenguid/firstmate/pull/6162
+armed: state/prtask.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6162 task_owner=prtask head_repo=kunchenguid/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=firstmate
+[exit=0]
+1
+## register fork PR #6164 for optask (yolo=off, no review configured)
+$ bin/fm-pr-check.sh optask https://github.com/kunchenguid/firstmate/pull/6164
+armed: state/optask.check.sh pr=https://github.com/kunchenguid/firstmate/pull/6164 task_owner=optask head_repo=salahmwahsh/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=operator
+[exit=0]
+--- state/optask.meta
+kind=ship
+window=firstmate:fm-optask
+endpoint_task_id=optask
+worktree=/tmp/fmhead.WzDz
+project=/tmp/fmhead.WzDz
+mode=no-mistakes
+yolo=off
+task_owner=optask
+head_repo=salahmwahsh/firstmate
+base_repo=kunchenguid/firstmate
+base_ref=main
+base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272
+merge_target=kunchenguid/firstmate:main
+stacked=no
+merge_owner=operator
+pr=https://github.com/kunchenguid/firstmate/pull/6164
+pr_head=bfafcdd00ae2874ba0099707134d6f3a26ba9cad
+## fm-pr-state with owning task (R6/R8 outcome surface)
+$ bin/fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6162 prtask
+PR: https://github.com/kunchenguid/firstmate/pull/6162 task_owner=prtask head_repo=kunchenguid/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=firstmate
+CHECKS: no required check has reported; readiness unconfirmed
+[exit=0]
+$ bin/fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6164 optask
+PR: https://github.com/kunchenguid/firstmate/pull/6164 task_owner=optask head_repo=salahmwahsh/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=1f2c9548f4680efeda76fabe9f057b4021b97272 merge_target=kunchenguid/firstmate:main stacked=no merge_owner=operator
+CHECKS: no required check has reported; readiness unconfirmed
+[exit=0]
+## adversarial: fm-pr-state with a task that does not own the PR
+$ bin/fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6162 optask
+fm-pr-state: task owner does not own PR
+[exit=2]
+## parent-channel ready lines
