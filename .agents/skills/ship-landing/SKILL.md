@@ -9,6 +9,7 @@ metadata:
 # Ship landing
 
 For PR-based ship tasks, the ready signal depends on mode: `no-mistakes` reports `done [at=<epoch>]: PR <url> checks green` after CI is green, while `direct-PR` reports `done [at=<epoch>]: PR <url>` after opening the PR, each only for a non-draft PR; a lane that deliberately holds a draft declares a wait instead, and `bin/fm-pr-check.sh` refuses to arm merge monitoring on a draft.
+When the project declares a ready check, `bin/fm-pr-check.sh` runs it only on a clean worker worktree whose HEAD is the forge's PR head, so a no-mistakes worker fast-forwards its copy to the head the pipeline pushed before reporting `checks green`; relay that fast-forward when a handoff is refused for a head mismatch.
 Run `bin/fm-pr-check.sh <id> <PR url>` with the URL copied from that ready signal or the resolved checks-green `fm-crew-state.sh` line - it records `pr=` and the forge's `pr_head=` when available in the task's meta and arms the watcher's merge poll.
 For an authorized independent review, require its current-head review receipt or the two-round cap escalation before treating the PR as complete; `bin/fm-pr-check.sh` routes configured reviews and reports the task owner, base, and merge owner.
 `bin/fm-dod-lib.sh` owns the named-head gate on that ready signal: a ship `done:` whose named head exists only in the worker's disposable copy is not ready (`bin/fm-crew-state.sh` reports blocked, `bin/fm-pr-check.sh` refuses to register, and a secondmate does not publish that done upstream).

@@ -2820,6 +2820,11 @@ EOF
           wake "$reason"
         fi
         pr_poll_control_release || exit 1
+        if fm_wake_terminal_notice_suppressed "$c" "$reason"; then
+          touch "$STATE/.last-check"
+          triage_log "suppressed a repeated terminal notice from $c for a merged, closed task"
+          continue
+        fi
         fm_wake_append check "$c" "$reason" || exit 1
         touch "$STATE/.last-check"
         wake "$reason"

@@ -1752,6 +1752,100 @@ test_gitlab_url_resolves_and_merges() {
   pass "fm-pr-merge merges a GitLab merge request through glab instead of refusing it"
 }
 
+# A GitLab merge has no recorded head to key a skip on, so the project's ready
+# check runs at merge time. It must run before the task's control lock is
+# taken, and a failing check must refuse the merge before glab is asked.
+test_gitlab_merge_runs_ready_check_outside_control_lock() {
+  local case_dir rc
+  case_dir=$(make_gitlab_case gitlab-ready-check)
+  mkdir -p "$case_dir/project/.firstmate"
+  cat > "$case_dir/project/.firstmate/ready-check" <<SH
+#!/usr/bin/env bash
+if [ -e "$case_dir/state/.control-task-x1.lock" ]; then echo held; else echo free; fi >> "$case_dir/ready.log"
+[ ! -e "$case_dir/ready.fail" ]
+SH
+  chmod +x "$case_dir/project/.firstmate/ready-check"
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "gitlab-ready-check: a ready check was not pinned to the merge request head"
+  assert_grep "worktree HEAD is not the handed-off head $MR_HEAD" "$case_dir/stderr" \
+    "gitlab-ready-check: the refusal did not name the unchecked merge request head"
+  [ ! -e "$case_dir/ready.log" ] || fail "gitlab-ready-check: the check ran against a worktree that is not the merge request head"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "gitlab-ready-check: glab merged an unchecked head"
+
+  write_mr_json "$case_dir/mr.json" "head=$(git -C "$case_dir/wt" rev-parse HEAD)" \
+    "pipeline_sha=$(git -C "$case_dir/wt" rev-parse HEAD)"
+  : > "$case_dir/ready.fail"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "gitlab-ready-check: a failing ready check did not refuse the merge"
+  assert_grep 'project ready check did not pass' "$case_dir/stderr" \
+    "gitlab-ready-check: the refusal did not name the ready check"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "gitlab-ready-check: glab merged despite a failing ready check"
+
+  rm -f "$case_dir/ready.fail" "$case_dir/ready.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "gitlab-ready-check: a passing ready check should allow the merge"
+  [ "$(cat "$case_dir/ready.log")" = free ] \
+    || fail "gitlab-ready-check: the ready check ran $(tr '\n' ' ' < "$case_dir/ready.log")times or under the control lock"
+  pass "fm-pr-merge pins the GitLab ready check to the merge request head, runs it outside the control lock, and refuses on failure"
+}
+
+# The merge is bound to the head a declared ready check covered: the forge head
+# read before the control lock, or the worktree head when that read failed. A
+# project that declares no check is not bound.
+test_github_merge_refuses_head_moved_after_ready_check() {
+  local case_dir rc wt_head pre_lock_head
+  case_dir=$(make_case github-ready-head-moved)
+  add_gh_mocks "$case_dir" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  : > "$case_dir/gh-axi.log"
+  wt_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "github-ready-head-moved: a project without a ready check was bound to a checked head"
+
+  mkdir -p "$case_dir/project/.firstmate"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$case_dir/project/.firstmate/ready-check"
+  chmod +x "$case_dir/project/.firstmate/ready-check"
+  for pre_lock_head in "$wt_head" unreadable; do
+    add_gh_mocks "$case_dir" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    if [ "$pre_lock_head" = unreadable ]; then rm -f "$case_dir/github-head"; else printf '%s\n' "$pre_lock_head" > "$case_dir/github-head"; fi
+    : > "$case_dir/gh.log"
+    set +e
+    run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    [ "$rc" -ne 0 ] || fail "github-ready-head-moved ($pre_lock_head): a head that moved after the ready check was merged"
+    assert_grep "head moved to bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb after its ready check at $wt_head" \
+      "$case_dir/stderr" "github-ready-head-moved ($pre_lock_head): the refusal did not name both heads"
+    ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved ($pre_lock_head): gh was asked to merge an unchecked head"
+    assert_no_grep 'pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$case_dir/state/task-x1.meta" \
+      "github-ready-head-moved ($pre_lock_head): the refused merge recorded the unchecked head"
+  done
+  printf 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n' > "$case_dir/github-head"
+  : > "$case_dir/gh.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "github-ready-head-moved (retry): the retried merge trusted a head no ready check covered"
+  assert_grep 'project ready check did not pass' "$case_dir/stderr" \
+    "github-ready-head-moved (retry): the retried merge did not re-run the ready check on the moved head"
+  ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved (retry): gh was asked to merge an unchecked head"
+  pass "fm-pr-merge binds a GitHub merge to the head its declared ready check covered, even when the forge head was unreadable"
+}
+
 test_gitlab_host_comes_from_the_url() {
   local case_dir rc host path project_url url
   host=gl.self-hosted.example
@@ -2402,6 +2496,8 @@ test_method_equals_merge_method_not_overridden
 test_parses_pr_url_for_gh_axi
 test_github_still_forwards_sha_arg
 test_gitlab_url_resolves_and_merges
+test_gitlab_merge_runs_ready_check_outside_control_lock
+test_github_merge_refuses_head_moved_after_ready_check
 test_gitlab_host_comes_from_the_url
 test_gitlab_imposes_no_merge_method
 test_gitlab_extra_args_forwarded

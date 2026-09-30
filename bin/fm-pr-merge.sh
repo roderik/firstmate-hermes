@@ -395,6 +395,50 @@ if ! fm_backlog_meta_spawn_gen_optional "$META" "$STATE"; then
 fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
 
+# The project's declared ready check runs before the control lock so a long
+# check cannot hold the task's lock. It is skipped only when the forge head is
+# the head bin/fm-pr-check.sh already checked and recorded. The merge is then
+# bound to the head that was checked or skipped: require_ready_head refuses one
+# that moved meanwhile.
+READY_BOUND=
+READY_KIND=$(grep '^kind=' "$META" | tail -1 | cut -d= -f2- || true)
+if [ "${READY_KIND:-ship}" = ship ]; then
+  READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
+  READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+  READY_HEAD=
+  READY_REMOTE=
+  if [ "$PROVIDER" = github ] && [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && command -v gh >/dev/null 2>&1; then
+    READY_REMOTE=$(cd "$READY_WT" && gh pr view "$URL" --json headRefOid -q .headRefOid 2>/dev/null || true)
+  elif [ "$PROVIDER" = gitlab ] && command -v glab >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    READY_REMOTE=$(GITLAB_HOST="$FM_PR_HOST" glab mr view "$PR_NUMBER" -R "$PROJECT_URL" -F json 2>/dev/null \
+      | jq -r 'if type == "object" then (.sha // empty) else empty end' 2>/dev/null || true)
+  fi
+  ! fm_pr_head_valid "$READY_REMOTE" || READY_HEAD=$READY_REMOTE
+  if [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ]; then
+    if [ -n "$READY_HEAD" ] && [ "$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)" = "$URL" ] \
+      && [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" = "$READY_HEAD" ]; then
+      READY_BOUND=$READY_HEAD
+    else
+      READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" ${READY_HEAD:+"$READY_HEAD"}) \
+        || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+      case "$READY_OUT" in
+        *'ready-check: passed'*)
+          READY_BOUND=${READY_HEAD:-$(git -C "$READY_WT" rev-parse --verify --quiet 'HEAD^{commit}' || true)}
+          [ -n "$READY_BOUND" ] || { echo "error: task $ID ready check passed on an unreadable worktree head; refusing to merge" >&2; exit 1; }
+          ;;
+      esac
+    fi
+  fi
+fi
+
+require_ready_head() {
+  [ -z "$READY_BOUND" ] || [ "$FM_PR_MERGE_HEAD" = "$READY_BOUND" ] || {
+    printf 'error: %s head moved to %s after its ready check at %s; refusing to merge an unchecked head - retry the merge\n' \
+      "$URL" "$FM_PR_MERGE_HEAD" "$READY_BOUND" >&2
+    return 1
+  }
+}
+
 MERGE_CONTROL_LOCK=
 MERGE_META_LOCK=
 merge_control_cleanup() {
@@ -1063,7 +1107,7 @@ METHODS
 }
 
 record_pr_metadata() {
-  if ! FM_PR_CHECK_MERGE=1 "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
+  if ! FM_PR_CHECK_MERGE=1 FM_PR_READY_BOUND=$READY_BOUND "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
     return 1
   fi
   grep -qxF "pr=$URL" "$META" || {
@@ -1377,6 +1421,7 @@ case "$PROVIDER" in
       fi
       exit 1
     fi
+    require_ready_head || exit 1
     # The away record is locked first, so this last presence and authority read
     # and the forge command below share one live-owner critical section.
     hold_away_record_for_merge || exit 1
@@ -1428,6 +1473,7 @@ case "$PROVIDER" in
     ;;
   gitlab)
     gitlab_verify_mergeable || exit 1
+    require_ready_head || exit 1
     # --sha binds the merge to the head this run verified, so a push that lands
     # in between is refused by GitLab instead of merged unverified. --yes only
     # skips the interactive confirmation, which no supervised run can answer;
