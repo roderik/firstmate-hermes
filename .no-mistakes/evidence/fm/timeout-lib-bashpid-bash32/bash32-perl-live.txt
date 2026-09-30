@@ -1,0 +1,19 @@
+bash: 3.2.57(1)-release  BASHPID set? []  perl: /usr/bin/perl
+=== S1 bounded run: pre-fix vs fix (perl watchdog) ===
+/pre/fm-timeout-lib.sh: line 224: BASHPID: unbound variable
+/pre: rc=127 elapsed=0s
+/repo/bin: rc=124 elapsed=3s
+=== S2 passthrough ===
+hello
+rc=7
+=== S3 restricted PATH without sh (perl only) ===
+rc=124 elapsed=2s
+=== S4 nested owner death (intermediate subshell outlives owner) ===
+owner 37 exiting
+bounded child pid=42
+PASS: child 42 reaped after owner death
+=== S5 new regression tests under real bash 3.2 ===
+ok - fm_exec_timed bounds a command when BASHPID is unset
+ok - fm_exec_timed preserves nested owner death detection when BASHPID is unset
+tests/fm-timeout-lib.test.sh: line 168: BASHPID: unbound variable
+not ok - the bounded probe failed under PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

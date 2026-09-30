@@ -1,0 +1,10 @@
+=== variant: prefix ===
+ok - fm_exec_timed passes a command's status and output through unchanged
+/tmp/tmp.jlH1MP0DxJ/bin/fm-timeout-lib.sh: line 224: BASHPID: unbound variable
+not ok - fm_exec_timed failed with BASHPID unset (rc=1)
+rc=1
+=== variant: naive ===
+ok - fm_exec_timed passes a command's status and output through unchanged
+ok - fm_exec_timed bounds a command when BASHPID is unset
+not ok - nested BASHPID-unset watchdog left the bounded child alive
+rc=1

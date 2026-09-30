@@ -1,0 +1,2 @@
+bin/fm-timeout-lib.sh:224:    current_pid=$BASHPID
+exit=0 (1 = no unguarded $BASHPID reads left in bin/)

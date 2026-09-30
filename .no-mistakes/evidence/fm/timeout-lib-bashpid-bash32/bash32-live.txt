@@ -1,0 +1,13 @@
+bash: 3.2.57(1)-release  BASHPID set? 
+/usr/bin/timeout
+/bin/sh
+/pre/fm-timeout-lib.sh: line 224: BASHPID: unbound variable
+/pre: rc=127 elapsed=0s
+bash: line 2:    14 Terminated              ( set -u; . $lib/fm-timeout-lib.sh; fm_exec_timed 2 1 sleep 300 )
+/fix: rc=143 elapsed=2s
+--- passthrough under fix
+hello
+rc=7
+--- restricted PATH (no sh on PATH) under fix
+bash: line 11:    31 Terminated              ( . /fix/fm-timeout-lib.sh; PATH=/tmp/p; fm_exec_timed 2 1 sleep 300 )
+rc=143 elapsed=2s
