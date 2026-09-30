@@ -1,0 +1,60 @@
+
+===== S1 pagination: 80 open decisions across the fleet =====
+
+===== drain #1 =====
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-65 of 80):
+task-01 [key=k01] needs-decision: choose option for entry 01
+task-02 [key=k02] needs-decision: choose option for entry 02
+task-50 [key=k50] needs-decision: choose option for entry 50
+task-51 [key=k51] needs-decision: choose option for entry 51
+task-52 [key=k52] needs-decision: choose option for entry 52
+task-53 [key=k53] needs-decision: choose option for entry 53
+task-54 [key=k54] needs-decision: choose option for entry 54
+task-55 [key=k55] needs-decision: choose option for entry 55
+task-56 [key=k56] needs-decision: choose option for entry 56
+task-57 [key=k57] needs-decision: choose option for entry 57
+task-58 [key=k58] needs-decision: choose option for entry 58
+task-59 [key=k59] needs-decision: choose option for entry 59
+task-60 [key=k60] needs-decision: choose option for entry 60
+task-61 [key=k61] needs-decision: choose option for entry 61
+task-62 [key=k62] needs-decision: choose option for entry 62
+task-63 [key=k63] needs-decision: choose option for entry 63
+task-64 [key=k64] needs-decision: choose option for entry 64
+task-65 [key=k65] needs-decision: choose option for entry 65
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+cursor file: v2|task-65|k65
+
+===== S2 churn: a new decision opens (task-00) and task-03 resolves between drains =====
+
+===== drain #2 =====
+OPEN DECISIONS (still open, folded from the durable status logs - page 66-80 of 80):
+task-80 [key=k80] needs-decision: choose option for entry 80
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+cursor file present? no
+
+===== drain #3 (wraps back to page 1) =====
+OPEN DECISIONS (still open, folded from the durable status logs - page 1-65 of 80):
+task-00 [key=fresh] needs-decision: new decision
+task-01 [key=k01] needs-decision: choose option for entry 01
+OPEN DECISIONS: page continues on the next drain.
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+
+===== S3 drain suppresses stale terminal notice with full proof; S4 adversarial rows stay loud =====
+WAKE TERMINAL NOTICES SUPPRESSED: 2 repeated terminal notice(s) for merged, closed task(s).
+1790729859	3	check	$LAB/state/resumed.check.sh	check: $LAB/state/resumed.check.sh: scheduled workflow failed
+1790729859	4	check	$LAB/state/badmarker.check.sh	check: $LAB/state/badmarker.check.sh: scheduled workflow failed
+1790729859	5	check	$LAB/state/symmarker.check.sh	check: $LAB/state/symmarker.check.sh: scheduled workflow failed
+1790729859	6	check	$LAB/state/nomarker.check.sh	check: $LAB/state/nomarker.check.sh: bot approval pending
+1790729859	7	check	$LAB/state/ci-bot-approval.check.sh	check: $LAB/state/ci-bot-approval.check.sh: deploy to prod failed
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+badmarker done: PR merged
+ci-bot-approval done: PR merged
+merged-done done: PR merged
+merged-wf done: PR merged
+nomarker done: PR merged
+symmarker done: PR merged
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 329638.1790729858.T0qR2Q
+
+===== ack the drained batch (incl. suppressed rows): 7 329638.1790729858.T0qR2Q =====
+ack rc=0; queue bytes left: 0

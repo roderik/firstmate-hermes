@@ -1,0 +1,11 @@
+===== watcher producer-side suppression (live lab tmux, fm-watch.sh) =====
+a-terminal: done + v1 marker, check prints 'scheduled workflow failed'; b-live: working + v1 marker, same output
+watcher wake line: check: $LAB/state/b-live.check.sh: scheduled workflow failed
+triage: suppressed a repeated terminal notice from $LAB/state/a-terminal.check.sh for a merged, closed task
+drain after: only b-live row queued (seq 8)
+
+===== adversarial: task path matches bot.*approv, output does not =====
+ci-bot-approval: done + v1 marker, check prints "deploy to prod failed"
+watcher output:
+check: $LAB/state/ci-bot-approval.check.sh: deploy to prod failed
+exit=0
