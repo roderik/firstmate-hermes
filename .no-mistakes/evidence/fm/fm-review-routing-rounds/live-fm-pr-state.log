@@ -1,0 +1,15 @@
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6183
+PR: https://github.com/kunchenguid/firstmate/pull/6183 task_owner=unknown head_repo=ilhamrzkm/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=b3d4133234f1552425e053c4a998cab9d8399dbb merge_target=kunchenguid/firstmate:main stacked=no merge_owner=unknown
+CHECKS: no required check has reported; readiness unconfirmed
+rc=0
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/1
+PR: https://github.com/kunchenguid/firstmate/pull/1 task_owner=unknown head_repo=kunchenguid/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=ccdea30b8c89e5725695e35c54b414e5b3509b5d merge_target=kunchenguid/firstmate:main stacked=no merge_owner=unknown
+STATE: merged at 2026-06-12T03:41:43Z
+rc=0
+$ fm-pr-state.sh .../pull/6183 own   (task owns the PR)
+PR: https://github.com/kunchenguid/firstmate/pull/6183 task_owner=own head_repo=ilhamrzkm/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=b3d4133234f1552425e053c4a998cab9d8399dbb merge_target=kunchenguid/firstmate:main stacked=no merge_owner=operator
+CHECKS: no required check has reported; readiness unconfirmed
+rc=0
+$ fm-pr-state.sh .../pull/6182 own   (task does not own that PR; must refuse)
+fm-pr-state: task owner does not own PR
+rc=2

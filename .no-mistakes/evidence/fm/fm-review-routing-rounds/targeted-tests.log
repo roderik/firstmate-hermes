@@ -1,33 +1,17 @@
 == fm-review-route
 ok - review dispatch binds exact heads, deduplicates receipts, and caps ordinary rounds at two
-exit=0
-== fm-pr-state
-ok - given gh's sentence, a head with no reported checks is unverified rather than ready
-ok - help states what empty output means and what is out of scope
-ok - unknown and conflicting mergeability block readiness
-ok - argument and lookup refusals exit nonzero
-exit=0
+rc=0
 == fm-pr-check-security
+ok - queued merges retain their away authority after captain return
 ok - poll distinguishes attended authorization from external landing
 ok - accepted merge authority refuses rebound task metadata
 ok - accepted merge authority persists under the lifecycle lock
 not ok - teardown race: refused cleanup removed persisted authority
-exit=1
-== fm-calm-pi-extension
-  code: 'ERR_UNKNOWN_FILE_EXTENSION'
-}
-
-Node.js v18.19.1
-exit=1
-== fm-pi-branch-extension
-  code: 'ERR_UNKNOWN_FILE_EXTENSION'
-}
-
-Node.js v18.19.1: expected exit 0, got 1
-exit=1
-== fm-remote-secondmate-parent-binding
-rm: cannot remove '/tmp/fm-remote-parent-binding.TT71wm/remote-home/state/parent-route/ios.git-hooks/commit-msg': Permission denied
-rm: cannot remove '/tmp/fm-remote-parent-binding.TT71wm/remote-home/state/parent-route/ios.git-hooks/pre-rebase': Permission denied
-rm: cannot remove '/tmp/fm-remote-parent-binding.TT71wm/remote-home/state/parent-route/ios.git-hooks/post-commit': Permission denied
-rm: cannot remove '/tmp/fm-remote-parent-binding.TT71wm/remote-home/state/parent-route/ios.git-hooks/prepare-commit-msg': Permission denied
-exit=0
+rc=1
+== fm-pr-state
+ok - given gh's sentence, an unreported required check is unconfirmed, other check lookup failures refuse
+ok - given gh's sentence, a head with no reported checks is unverified rather than ready
+ok - help states what empty output means and what is out of scope
+ok - unknown and conflicting mergeability block readiness
+ok - argument and lookup refusals exit nonzero
+rc=0

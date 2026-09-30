@@ -1,0 +1,15 @@
+--- watcher stdout
+signal: /tmp/fm-lab.rStXzT/state/plain.status /tmp/fm-lab.rStXzT/state/watched.status
+watch rc=0
+--- watcher stderr (tail)
+--- review markers in state
+build.review-cap-escalated
+build.review-rounds
+reviewer.meta
+watched.review-route-attention
+--- wake queue rows
+1790741894	4	check	review-route-watched	review routing needs attention: task=watched
+1790741895	5	signal	plain.status	signal: /tmp/fm-lab.rStXzT/state/plain.status /tmp/fm-lab.rStXzT/state/watched.status
+1790741895	6	signal	watched.status	signal: /tmp/fm-lab.rStXzT/state/plain.status /tmp/fm-lab.rStXzT/state/watched.status
+1790741895	7	signal	plain.status	signal: /tmp/fm-lab.rStXzT/state/plain.status /tmp/fm-lab.rStXzT/state/watched.status
+1790741895	8	signal	watched.status	signal: /tmp/fm-lab.rStXzT/state/plain.status /tmp/fm-lab.rStXzT/state/watched.status

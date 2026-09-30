@@ -1,0 +1,51 @@
+$ fm-review-route.sh configure build security reviewer codex
+review configured: task=build class=security owner=reviewer family=codex
+rc=0
+$ status: working [at=1]: build done commit=0123456789abcdef0123456789abcdef01234567 ; fm-review-route.sh scan build
+error: no-mistakes gate agent must not drive the fleet (NO_MISTAKES_GATE set)
+fm-review-route: review delivery was not confirmed; retry the same request
+rc=1
+total 20
+drwxrwxr-x 2 roderik roderik 4096 Sep 30 06:17 .
+drwxrwxr-x 6 roderik roderik 4096 Sep 30 06:16 ..
+-rw------- 1 roderik roderik  123 Sep 30 06:17 build.meta
+-rw-rw-r-- 1 roderik roderik   75 Sep 30 06:17 build.status
+-rw------- 1 roderik roderik   16 Sep 30 06:17 reviewer.meta
+
+--- seed two completed rounds in state/build.review-rounds (persisted receipt format)
+$ scan build (status still names already-routed head A)
+review already routed: task=build head=0123456789abcdef0123456789abcdef01234567 pr=https://github.com/o/r/pull/7
+rc=0
+$ needs-decision prose naming head C (must NOT route)
+rc=0
+$ request build https://github.com/o/r/pull/7 2123456789abcdef0123456789abcdef01234567 security codex   (third round, no finding)
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+rc=3
+cap marker: 2123456789abcdef0123456789abcdef01234567
+$ repeat third-round request (escalation must not duplicate)
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+rc=3
+--- wake queue files:
+$LAB/state/build.review-cap-escalated
+$LAB/state/build.meta
+$LAB/state/.wake-queue
+$LAB/state/build.status
+$LAB/state/.wake-queue.seq
+$LAB/state/.watcher-down
+1790741847	1	check	review-cap-build	review cap reached: task=build pr=https://github.com/o/r/pull/7 head=2123456789abcdef0123456789abcdef01234567 class=security; file non-blocking polish as follow-up
+$ request with mismatched class (must refuse)
+fm-review-route: request disagrees with configured review class or family
+rc=1
+$ request for a PR not owned by task (must refuse)
+fm-review-route: PR is not owned by this task
+rc=1
+$ exception without correctness/security rationale (must refuse)
+fm-review-route: exception must name correctness or security
+rc=1
+$ exception with blocking correctness finding (passes cap; reaches delivery)
+error: no-mistakes gate agent must not drive the fleet (NO_MISTAKES_GATE set)
+fm-review-route: review delivery was not confirmed; retry the same request
+rc=1
+--- final review-rounds:
+0123456789abcdef0123456789abcdef01234567	-	security	codex	aaaa	-
+1123456789abcdef0123456789abcdef01234567	https://github.com/o/r/pull/7	security	codex	bbbb	-
