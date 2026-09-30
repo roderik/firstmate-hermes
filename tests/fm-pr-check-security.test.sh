@@ -139,7 +139,20 @@ SH
   cat > "$fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_LOG"
+case " $* " in
+  *"default_branch"*) printf '%s\n' "${FM_TEST_GH_DEFAULT_BRANCH:-main}"; exit 0 ;;
+  *"base.repo.full_name"*) [ "${FM_TEST_GH_IDENTITY_FAIL:-0}" = 0 ] || exit 1 ;;
+esac
 case "${1:-} ${2:-}" in
+  api\ /repos/*/pulls/*)
+    case " $* " in
+      *"base.repo.full_name"*)
+        repo=${2#/repos/}; repo=${repo%/pulls/*}
+        printf '%s\t%s\t%s\t0123456789abcdef0123456789abcdef01234567\n' "$repo" "$repo" "${FM_TEST_GH_BASE_REF:-main}"
+        exit 0
+        ;;
+    esac
+    ;;
   "api graphql")
     printf '%s\n' \
       "state=${FM_TEST_GH_GRAPHQL_STATE:-MERGED}" \
@@ -746,6 +759,12 @@ test_valid_recording_and_merge_derivation() {
   grep -qxF 'pr=https://github.com/my-org/repo_name.with-dots/pull/37' "$dir/home/state/task-a.meta" \
     || fail "canonical pr metadata was not exact"
   grep -qxF "pr_head=$expected" "$dir/home/state/task-a.meta" || fail "PR head metadata was not exact"
+  grep -qxF 'task_owner=task-a' "$dir/home/state/task-a.meta" || fail 'PR task owner was not recorded'
+  grep -qxF 'head_repo=my-org/repo_name.with-dots' "$dir/home/state/task-a.meta" || fail 'PR head repo was not recorded'
+  grep -qxF 'base_repo=my-org/repo_name.with-dots' "$dir/home/state/task-a.meta" || fail 'PR base repo was not recorded'
+  grep -qxF 'base_ref=main' "$dir/home/state/task-a.meta" || fail 'PR base ref was not recorded'
+  grep -qxF 'merge_target=my-org/repo_name.with-dots:main' "$dir/home/state/task-a.meta" || fail 'PR merge target was not recorded'
+  grep -qxF 'stacked=no' "$dir/home/state/task-a.meta" || fail 'PR default-base classification was not recorded'
   cmp -s "$POLL" "$dir/home/state/task-a.check.sh" || fail "published check was not byte-for-byte static"
   [ "$(file_mode "$dir/home/state/task-a.check.sh")" = 600 ] || fail "published check mode was not 0600"
   [ "$(file_mode "$dir/home/state/task-a.pr-poll")" = 600 ] || fail "published sidecar mode was not 0600"
@@ -866,6 +885,44 @@ SH
     [ ! -e "$dir/home/state/$id.meta" ] || fail "legacy task teardown retained metadata"
   done
   pass "valid direct and merge flows record exact metadata and reject multiline head metadata"
+}
+
+test_stacked_pr_base_is_flagged() {
+  local dir
+  dir=$(make_case stacked-base)
+  write_task_meta "$dir"
+  FM_TEST_GH_BASE_REF=feature/base run_check_entry "$dir" task-a https://github.com/o/r/pull/7 \
+    > "$dir/stdout" 2> "$dir/stderr" || fail 'stacked PR was refused'
+  grep -qxF 'base_ref=feature/base' "$dir/home/state/task-a.meta" || fail 'stacked base ref missing'
+  grep -qxF 'merge_target=o/r:feature/base' "$dir/home/state/task-a.meta" || fail 'stacked merge target missing'
+  grep -qxF 'stacked=yes' "$dir/home/state/task-a.meta" || fail 'stacked PR was not flagged'
+  assert_grep 'stacked=yes' "$dir/stdout" 'stacked flag missing from PR outcome'
+  pass 'stacked PR ownership and merge target are durable and visible'
+}
+
+test_pr_ready_carries_merge_authority() {
+  local dir
+  dir=$(make_case ready-merge-authority)
+  write_task_meta "$dir"
+  printf 'yolo=on\n' >> "$dir/home/state/task-a.meta"
+  run_check_entry "$dir" task-a https://github.com/o/r/pull/7 > "$dir/stdout" 2> "$dir/stderr" \
+    || fail 'ready PR with recorded merge authority was refused'
+  grep -qxF 'merge_owner=firstmate' "$dir/home/state/task-a.meta" || fail 'PR lost firstmate merge owner'
+  assert_grep 'merge_owner=firstmate' "$dir/stdout" \
+    'ready outcome repeated a merge question by dropping recorded authority'
+  pass 'ready PR carries task merge authority'
+}
+
+test_unreadable_pr_identity_still_arms() {
+  local dir
+  dir=$(make_case unreadable-identity)
+  write_task_meta "$dir"
+  FM_TEST_GH_IDENTITY_FAIL=1 run_check_entry "$dir" task-a https://github.com/o/r/pull/7 \
+    > "$dir/stdout" 2> "$dir/stderr" || fail 'unreadable PR identity blocked arming'
+  [ -f "$dir/home/state/task-a.check.sh" ] || fail 'unreadable PR identity left no armed poll'
+  grep -qxF 'base_ref=unknown' "$dir/home/state/task-a.meta" || fail 'unreadable base was not recorded as unknown'
+  grep -qxF 'stacked=unknown' "$dir/home/state/task-a.meta" || fail 'unreadable stacking was not recorded as unknown'
+  pass 'unreadable PR identity records unknown facts and still arms'
 }
 
 # Runs one watcher under a hang guard that TERMs it and returns 124 once it has
@@ -3469,6 +3526,9 @@ test_secondmate_record_refuses_a_pr_watch
 test_unpushed_named_head_refuses_registration
 test_direct_pr_unpushed_commit_refuses_registration
 test_valid_recording_and_merge_derivation
+test_stacked_pr_base_is_flagged
+test_pr_ready_carries_merge_authority
+test_unreadable_pr_identity_still_arms
 test_rejected_metacharacter_bytes_are_inert
 test_static_poll_contract
 test_atomic_interruption_leaves_no_partial_artifact
