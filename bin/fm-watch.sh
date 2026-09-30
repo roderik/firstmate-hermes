@@ -76,6 +76,13 @@
 #                          agent, for human inspection only - never an automatic
 #                          interrupt, signal, or restart of the worker or its
 #                          tool process.
+#   stale: <window> (stopped on <cause>; auto-relaunch ...)
+#                          an idle ship or scout pane ends on a terminal harness
+#                          API error (bin/fm-harness-crash-lib.sh); the watcher
+#                          first relaunches it fresh, silently, through
+#                          bin/fm-control.sh relaunch, and surfaces this once per
+#                          pane hash only when HARNESS_CRASH_MAX_ATTEMPTS is spent
+#                          or the relaunch fails (harness_crash_relaunch)
 #   stale: <window> (unread firstmate instruction: ...)
 #                          the steering-inbox ladder spent its delivery-attempt
 #                          budget on an idle pane without an acknowledgement
@@ -236,6 +243,10 @@ WATCH_HOME_EXISTED=0
 # and wake emission (secondmate_liveness_tick below).
 # shellcheck source=/dev/null # Analyzed separately as a canonical lint root.
 . "$SCRIPT_DIR/fm-secondmate-liveness-lib.sh"
+# Terminal harness-error recognition and its relaunch ledger, driven from the
+# pane-stale path below (harness_crash_relaunch).
+# shellcheck source=bin/fm-harness-crash-lib.sh
+. "$SCRIPT_DIR/fm-harness-crash-lib.sh"
 
 WATCH_LOCK="$STATE/.watch.lock"
 WATCH_PATH="$SCRIPT_DIR/fm-watch.sh"
@@ -369,6 +380,19 @@ SECONDMATE_LIVENESS_MAX_ATTEMPTS=${FM_SECONDMATE_LIVENESS_MAX_ATTEMPTS:-}
 case "$SECONDMATE_LIVENESS_MAX_ATTEMPTS" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_MAX_ATTEMPTS=3 ;; esac
 SECONDMATE_LIVENESS_WINDOW_SECS=${FM_SECONDMATE_LIVENESS_WINDOW_SECS:-}
 case "$SECONDMATE_LIVENESS_WINDOW_SECS" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_WINDOW_SECS=3600 ;; esac
+# A ship or scout whose idle pane ends on a known terminal harness API error
+# (bin/fm-harness-crash-lib.sh owns the signatures) is relaunched fresh through
+# bin/fm-control.sh relaunch, at most HARNESS_CRASH_MAX_ATTEMPTS times per
+# HARNESS_CRASH_WINDOW_SECS per task; past that bound, or when the relaunch
+# itself fails, the pane surfaces as an ordinary stale wake naming the error.
+# HARNESS_CRASH_TIMEOUT bounds one relaunch so a wedged one cannot stall the poll.
+HARNESS_CRASH_MAX_ATTEMPTS=${FM_HARNESS_CRASH_MAX_ATTEMPTS:-}
+case "$HARNESS_CRASH_MAX_ATTEMPTS" in ''|*[!0-9]*) HARNESS_CRASH_MAX_ATTEMPTS=3 ;; esac
+HARNESS_CRASH_WINDOW_SECS=${FM_HARNESS_CRASH_WINDOW_SECS:-}
+case "$HARNESS_CRASH_WINDOW_SECS" in ''|*[!0-9]*|0) HARNESS_CRASH_WINDOW_SECS=3600 ;; esac
+HARNESS_CRASH_TIMEOUT=${FM_HARNESS_CRASH_TIMEOUT:-}
+case "$HARNESS_CRASH_TIMEOUT" in ''|*[!0-9]*|0) HARNESS_CRASH_TIMEOUT=300 ;; esac
+FM_CONTROL_BIN=${FM_CONTROL_BIN:-$SCRIPT_DIR/fm-control.sh}
 # A crew that declared a pause is idling on a known external wait, so its stale
 # pane is absorbed rather than wedge-escalated.
 # A captain-held or paused crew whose agent has confidently exited uses the same
@@ -1113,6 +1137,51 @@ secondmate_liveness_tick() {
   done
   [ -z "$first_reason" ] || wake "$first_reason"
   [ "$failed" -eq 0 ]
+}
+
+# harness_crash_relaunch: recover a ship or scout whose idle pane ends on a
+# terminal harness API error. Returns 1 (not handled - ordinary stale triage
+# continues) when the capture shows no known error. On a match it relaunches the
+# worker fresh through bin/fm-control.sh relaunch with a continue note, ledgers
+# the attempt, logs to triage, and returns 0 without waking: an automatic fix
+# is not captain-facing. When the bound is spent or the relaunch fails it
+# surfaces one ordinary stale wake per pane hash naming the error, so a worker
+# that keeps crashing still reaches firstmate. A per-task lock keeps a
+# concurrent watcher from relaunching the same worker twice.
+harness_crash_relaunch() {  # <window> <task> <tail40> <hash> <stale-marker>
+  local w=$1 task=$2 tail40=$3 h=$4 sf=$5 meta harness cause attempts out rc=0 reason note lock
+  [ -n "$task" ] || return 1
+  meta="$STATE/$task.meta"
+  [ -f "$meta" ] || return 1
+  harness=$(fm_meta_get "$meta" harness 2>/dev/null || true)
+  cause=$(fm_harness_crash_cause "$harness" "$tail40") || return 1
+  [ "$(cat "$sf" 2>/dev/null || true)" != "$h" ] || return 0
+  lock="$STATE/.harness-crash-$task.lock"
+  fm_lock_try_acquire "$lock" || return 0
+  reason=''
+  if ! attempts=$(fm_harness_crash_recent_attempts "$STATE" "$task" "$HARNESS_CRASH_WINDOW_SECS"); then
+    reason="stale: $w (stopped on $cause; auto-relaunch ledger unreadable)"
+  elif [ "$attempts" -ge "$HARNESS_CRASH_MAX_ATTEMPTS" ]; then
+    reason="stale: $w (stopped on $cause; auto-relaunch bound spent: $attempts in ${HARNESS_CRASH_WINDOW_SECS}s)"
+  elif ! fm_harness_crash_ledger_add "$STATE" "$task" attempt; then
+    reason="stale: $w (stopped on $cause; auto-relaunch ledger unwritable)"
+  else
+    note="Your previous agent stopped on a terminal API error ($cause) that its session cannot recover from, so supervision relaunched you fresh. Continue where it stopped: read your status file and this local copy's git status and log to see how far the work got, then carry on with the task."
+    out=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG"       fm_run_timed "$HARNESS_CRASH_TIMEOUT" "$FM_CONTROL_BIN" "$task" relaunch --note "$note" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      fm_harness_crash_ledger_add "$STATE" "$task" relaunched || true
+      rm -f "$STATE/.count-$(window_key "$w")"
+      triage_log "relaunched $task after $cause: $w"
+    else
+      fm_harness_crash_ledger_add "$STATE" "$task" failed || true
+      reason="stale: $w (stopped on $cause; auto-relaunch failed: $(printf '%s\n' "$out" | sed -n '$s/[[:space:]]\{1,\}/ /g;$p'))"
+    fi
+  fi
+  fm_lock_release "$lock" 2>/dev/null || true
+  [ -n "$reason" ] || return 0
+  fm_wake_append stale "$w" "$reason" || exit 1
+  printf '%s' "$h" > "$sf"
+  wake "$reason"
 }
 
 # Consecutive wedge-escalation count for a window past FM_WEDGE_DEMAND_INSPECT_COUNT
@@ -3035,8 +3104,12 @@ EOF
       echo "$n" > "$cf"
       if [ "$n" -ge 2 ] && [ "$busy_now" -ne 0 ]; then
         # The pane is idle/stale at hash $h. Triage decides whether this wakes
-        # firstmate. Detection itself is unchanged from above.
-        if [ "$kind" = secondmate ]; then
+        # firstmate. Detection itself is unchanged from above. A worker that
+        # stopped on a terminal harness error is recovered before triage.
+        if { [ "$kind" = ship ] || [ "$kind" = scout ]; } \
+          && harness_crash_relaunch "$w" "$task" "$tail40" "$h" "$sf"; then
+          :
+        elif [ "$kind" = secondmate ]; then
           case "$(pause_state_class "$w" "$task")" in
             paused) handle_paused_stale "$w" "$task" "$h" ;;
             *)      clear_pause_tracking "$key" ;;
