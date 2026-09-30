@@ -1,0 +1,36 @@
+## brief spec lines
+## Firstmate spec
+Open the page and report.
+Proof surfaces: browser, seed
+
+# Herdr lifecycle declaration - NOT ENABLED
+
+$ fm-spawn.sh s1 /tmp/fm-lab.xGfTBn/projects/demo --scout --harness claude   # Proof surfaces: browser, seed (host has no Chrome)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xGfTBn
+capability: browser unavailable - chrome-devtools-axi could not drive a browser
+error: required host capability 'browser' is unavailable; refusing dispatch before endpoint creation
+rc=1
+-- state: 
+-- lab tmux: error connecting to /tmp/fm-lab.xGfTBn/tmux/tmux-1000/fm-lab (No such file or directory)
+-- treehouse pool for demo: A new version of treehouse is available: v2.3.0 → v3.1.0 Run "treehouse update" to update 
+-- worktrees: 1
+
+$ fm-spawn.sh s1 /tmp/fm-lab.xGfTBn/projects/demo --scout --harness claude   # Proof surfaces: seed, telepathy (unknown surface)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xGfTBn
+capability: seed ready
+error: unknown proof surface 'telepathy' in /tmp/fm-lab.xGfTBn/data/s1/brief.md
+rc=1
+-- state: 
+-- lab tmux: error connecting to /tmp/fm-lab.xGfTBn/tmux/tmux-1000/fm-lab (No such file or directory)
+-- treehouse pool for demo: A new version of treehouse is available: v2.3.0 → v3.1.0 Run "treehouse update" to update 
+-- worktrees: 1
+
+$ fm-spawn.sh s1 /tmp/fm-lab.xGfTBn/projects/demo --scout --harness claude   # Proof surfaces: seed, project declares no seed-check
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xGfTBn
+capability: seed unavailable - project declares no .firstmate/seed-check
+error: required host capability 'seed' is unavailable; refusing dispatch before endpoint creation
+rc=1
+-- state: 
+-- lab tmux: error connecting to /tmp/fm-lab.xGfTBn/tmux/tmux-1000/fm-lab (No such file or directory)
+-- treehouse pool for demo: A new version of treehouse is available: v2.3.0 → v3.1.0 Run "treehouse update" to update 
+-- worktrees: 1

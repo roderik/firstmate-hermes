@@ -1,0 +1,44 @@
+$ fm-capability-check.sh --surface pool --project /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QWVHRJ3K4Y4FQVWF9PEXD5
+capability: pool ready
+real	0m0.018s
+rc=0
+$ fm-capability-check.sh --surface ci --project /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QWVHRJ3K4Y4FQVWF9PEXD5
+capability: ci unavailable - no-mistakes is not ready for this project
+real	0m0.469s
+rc=1
+$ fm-capability-check.sh --surface ci --project /tmp/fm-cap-live.SRF0Ii/bare-proj
+capability: ci unavailable - no-mistakes is not ready for this project
+real	0m0.166s
+rc=1
+$ fm-capability-check.sh --surface browser --project /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QWVHRJ3K4Y4FQVWF9PEXD5
+capability: browser unavailable - chrome-devtools-axi could not drive a browser
+real	0m0.157s
+rc=1
+$ fm-capability-check.sh --surface seed --project /tmp/fm-cap-live.SRF0Ii/bare-proj
+capability: seed unavailable - project declares no .firstmate/seed-check
+real	0m0.003s
+rc=1
+$ fm-capability-check.sh --surface seed --project /tmp/fm-cap-live.SRF0Ii/bare-proj
+probing seed db
+capability: seed ready
+real	0m0.009s
+rc=0
+$ fm-capability-check.sh --surface attachments --project /tmp/fm-cap-live.SRF0Ii/bare-proj
+capability: attachments unavailable - .firstmate/attachments-check failed
+real	0m3.009s
+rc=1
+$ fm-capability-check.sh --surface pool --project /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QWVHRJ3K4Y4FQVWF9PEXD5
+capability: pool unavailable - treehouse is missing
+real	0m0.004s
+rc=1
+$ fm-capability-check.sh --surface bogus --project /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QWVHRJ3K4Y4FQVWF9PEXD5
+error: --surface must be browser, attachments, pool, seed, or ci
+real	0m0.002s
+rc=2
+$ fm-capability-check.sh --surface ci --project /home/roderik/code/firstmate-hermes
+capability: ci unavailable - no-mistakes is not ready for this project
+rc=1
+$ fm-capability-check.sh --surface ci --project /home/roderik/code/fmh
+capability: ci unavailable - no-mistakes is not ready for this project
+rc=1
+(browser: host has no Chrome at /opt/google/chrome/chrome, so chrome-devtools-axi pages fails; refusal is correct)

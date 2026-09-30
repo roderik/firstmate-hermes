@@ -1,0 +1,21 @@
+$ fm-merge-local.sh t1   # committed branch fails the project check
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ready-check: running /tmp/fm-lab.3vfPd7/projects/demo/.firstmate/ready-check
+ready-check: failed (exit 1)
+error: task t1 project ready check did not pass; refusing to merge
+rc=1  main=c412ef2 fm/t1=c30b375
+$ fm-merge-local.sh t1   # fix left uncommitted in worktree
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: task t1 worktree is not a clean checkout of its ship branch tip; refusing to run the ready check or merge
+rc=1  main=c412ef2 fm/t1=c30b375
+$ fm-merge-local.sh t1   # committed fix passes
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+ready-check: running /tmp/fm-lab.3vfPd7/projects/demo/.firstmate/ready-check
+merged fm/t1 into local main (c412ef2 -> 3830593) in /tmp/fm-lab.3vfPd7/projects/demo
+rc=0  main=3830593 fm/t1=3830593
