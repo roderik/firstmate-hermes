@@ -106,6 +106,15 @@ fm_backend_tmux_create_task() {  # <session> <window-name> <proj-abs> -> prints 
   printf '%s\n' "$wid"
 }
 
+# fm_backend_tmux_window_exists: exact liveness of a <session>:<window-name>
+# target. `display-message -t` exits 0 on tmux 3.4 even for a missing window or
+# session, so it cannot decide whether the author's window is still there.
+fm_backend_tmux_window_exists() {  # <session>:<window-name>
+  local session=${1%%:*} wname=${1#*:}
+  [ -n "$session" ] && [ -n "$wname" ] && [ "$wname" != "$1" ] || return 1
+  tmux list-windows -t "=$session" -F '#{window_name}' 2>/dev/null | grep -qxF -- "$wname"
+}
+
 # fm_backend_tmux_create_review_task: open a review window beside the author's
 # existing window, reusing the author's session and worktree without a pool
 # allocation. Prints the stable window id for the new endpoint.

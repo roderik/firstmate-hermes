@@ -24,20 +24,54 @@ make_review_case() {  # <name> -> "<home>|<proj>|<wt>|<fakebin>"
   proj="$case_dir/project"
   wt="$case_dir/wt"
   fakebin=$(make_spawn_fakebin "$case_dir/fake" claude opencode gh gh-axi no-mistakes)
-  # The shared spawn tmux stub prints nothing for `new-window -P`; the review
-  # path needs the new window's id back.
+  # Wrap the shared spawn tmux stub with a window table that behaves like real
+  # tmux: new-window records "<session> <name> <id>", list-windows lists only a
+  # live session's names (and fails for a missing session), kill-window drops
+  # the row, and display-message still exits 0 for a missing target.
   mv "$fakebin/tmux" "$fakebin/tmux-base"
-  cat >"$fakebin/tmux" <<'SH'
+  printf '%s\n' firstmate >"$case_dir/tmux-sessions"
+  printf '%s\n' "firstmate fm-$AUTHOR @1" >"$case_dir/tmux-windows"
+  cat >"$fakebin/tmux" <<SH
 #!/usr/bin/env bash
-case "${1:-}" in new-window) printf '@77\n'; exit 0 ;; esac
-case "$*" in *"#{pane_id}"*) [ -z "${FM_FAKE_AUTHOR_GONE:-}" ] || exit 1 ;; esac
+sessions="$case_dir/tmux-sessions" windows="$case_dir/tmux-windows"
+SH
+  cat >>"$fakebin/tmux" <<'SH'
+target= name=
+args=("$@")
+for ((i = 1; i < ${#args[@]}; i++)); do
+  case "${args[i]}" in
+    -t) target=${args[i + 1]} ;;
+    -n) name=${args[i + 1]} ;;
+  esac
+done
+ses=${target#=}
+ses=${ses%%:*}
+case "${1:-}" in
+  list-windows)
+    grep -qxF -- "$ses" "$sessions" || { echo "can't find session: $ses" >&2; exit 1; }
+    awk -v s="$ses" '$1 == s { print $2 }' "$windows"
+    exit 0
+    ;;
+  new-window)
+    grep -qxF -- "$ses" "$sessions" || { echo "can't find session: $ses" >&2; exit 1; }
+    id="@$(($(wc -l <"$windows") + 100))"
+    printf '%s %s %s\n' "$ses" "$name" "$id" >>"$windows"
+    printf '%s\n' "$id"
+    exit 0
+    ;;
+  kill-window)
+    awk -v t="$target" '($1 ":" $2) != t && $3 != t' "$windows" >"$windows.tmp"
+    mv "$windows.tmp" "$windows"
+    exit 0
+    ;;
+esac
 exec "$(dirname "$0")/tmux-base" "$@"
 SH
   chmod +x "$fakebin/tmux"
   fm_test_spawn_home "$home" claude
   fm_git_worktree "$proj" "$wt" "fm/$AUTHOR"
   fm_write_meta "$home/state/$AUTHOR.meta" \
-    "window=fmsess:fm-$AUTHOR" "worktree=$wt" "project=$proj" \
+    "window=firstmate:fm-$AUTHOR" "worktree=$wt" "project=$proj" \
     "harness=claude" "kind=ship" "backend=tmux" "mode=no-mistakes" "yolo=off"
   mkdir -p "$wt/.claude" "$wt/.opencode/plugins"
   printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch author.turn-ended"}]}]}}' \
@@ -45,11 +79,11 @@ SH
   printf '%s\n' '// author opencode plugin' >"$wt/.opencode/plugins/fm-busy-state.js"
   printf '%s\n' 'token=fm.authorgrok01' >"$wt/.fm-grok-turnend"
   printf '%s\n' 'token=fm.authorkimi01' >"$wt/.fm-kimi-turnend"
-  printf '%s\n' "$home|$proj|$wt|$fakebin"
+  printf '%s\n' "$home|$proj|$wt|$fakebin|$case_dir"
 }
 
 read_case() {
-  IFS='|' read -r HOME_DIR PROJ_DIR WT_DIR FAKEBIN_DIR <<EOF
+  IFS='|' read -r HOME_DIR PROJ_DIR WT_DIR FAKEBIN_DIR CASE_DIR <<EOF
 $1
 EOF
 }
@@ -94,6 +128,8 @@ test_claude_review_keeps_author_wiring() {
   [ "$before" = "$after" ] || fail "review spawn changed the author's wiring:
 before: $before
 after:  $after"
+  [ "$(awk '{ print $1 ":" $2 }' "$CASE_DIR/tmux-windows")" = "firstmate:fm-$AUTHOR
+firstmate:fm-$id" ] || fail "review must open exactly one window beside its author: $(cat "$CASE_DIR/tmux-windows")"
   [ "$(meta_value "$HOME_DIR/state/$id.meta" worktree)" = "$WT_DIR" ] \
     || fail "review did not run in the author's worktree: $(cat "$HOME_DIR/state/$id.meta")"
   [ "$(meta_value "$HOME_DIR/state/$id.meta" review_of)" = "$AUTHOR" ] \
@@ -148,19 +184,29 @@ test_worktree_wired_harness_refused() {
 }
 
 test_dead_author_endpoint_falls_back() {
-  local rec id=review-3 out
-  rec=$(make_review_case dead-author)
-  read_case "$rec"
-  fm_test_spawn_brief "$HOME_DIR" "$id"
-  out=$(FM_FAKE_AUTHOR_GONE=1 run_review_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" \
-    "$id" --review-of "$AUTHOR" --harness claude)
-  case "$out" in
-    *"notice: review $id of $AUTHOR falls back to a pooled review worktree in $PROJ_DIR: author endpoint fmsess:fm-$AUTHOR on tmux is gone"*) ;;
-    *) fail "a recorded but dead author endpoint must take the logged pool fallback: $out" ;;
-  esac
-  [ ! -e "$HOME_DIR/state/$id.claude-settings.json" ] \
-    || fail "a fallback review must not take the in-workspace claude settings path"
-  pass "a review whose recorded author endpoint is dead falls back to a pooled worktree with a logged reason"
+  local rec id out gone target
+  for gone in window session; do
+    id=review-3-$gone
+    rec=$(make_review_case "dead-author-$gone")
+    read_case "$rec"
+    fm_test_spawn_brief "$HOME_DIR" "$id"
+    if [ "$gone" = window ]; then
+      target="firstmate:fm-$AUTHOR"
+      : >"$CASE_DIR/tmux-windows"
+    else
+      target="goneses:fm-$AUTHOR"
+      sed -i "s/^window=.*/window=$target/" "$HOME_DIR/state/$AUTHOR.meta"
+    fi
+    out=$(run_review_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" \
+      "$id" --review-of "$AUTHOR" --harness claude)
+    case "$out" in
+      *"notice: review $id of $AUTHOR falls back to a pooled review worktree in $PROJ_DIR: author endpoint $target on tmux is gone"*) ;;
+      *) fail "a recorded author endpoint whose $gone is gone must take the logged pool fallback: $out" ;;
+    esac
+    [ ! -e "$HOME_DIR/state/$id.claude-settings.json" ] \
+      || fail "a fallback review must not take the in-workspace claude settings path"
+  done
+  pass "a review whose recorded author window or session is gone falls back to a pooled worktree with a logged reason"
 }
 
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found"; exit 0; }

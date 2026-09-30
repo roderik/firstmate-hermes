@@ -1554,7 +1554,11 @@ if [ "$REVIEW" -eq 1 ]; then
     REVIEW_FALLBACK_REASON="author worktree '$REVIEW_AUTHOR_WORKTREE' is gone"
   else
     case "$REVIEW_AUTHOR_BACKEND" in
-      tmux|herdr)
+      tmux)
+        { fm_backend_source tmux && fm_backend_tmux_window_exists "$REVIEW_AUTHOR_TARGET"; } \
+          || REVIEW_FALLBACK_REASON="author endpoint $REVIEW_AUTHOR_TARGET on $REVIEW_AUTHOR_BACKEND is gone"
+        ;;
+      herdr)
         fm_backend_target_exists "$REVIEW_AUTHOR_BACKEND" "$REVIEW_AUTHOR_TARGET" \
           || REVIEW_FALLBACK_REASON="author endpoint $REVIEW_AUTHOR_TARGET on $REVIEW_AUTHOR_BACKEND is gone"
         ;;
@@ -3693,6 +3697,28 @@ EOF
     SES=$HERDR_SES
     WT_TARGET=$T
   fi
+elif [ "$REVIEW" -eq 1 ]; then
+  # A review opens ONE endpoint beside its author, never the generic task
+  # endpoint: that would take the same fm-<id> name in the shared session.
+  case "$BACKEND" in
+  tmux)
+    REVIEW_WID=$(fm_backend_tmux_create_review_task "$REVIEW_AUTHOR_TARGET" "$W" "$WT") || exit 1
+    T="${REVIEW_AUTHOR_TARGET%%:*}:$W"
+    WT_TARGET="$REVIEW_WID"
+    ;;
+  herdr)
+    REVIEW_CONTAINER="${REVIEW_AUTHOR_TARGET%%:*}:$REVIEW_AUTHOR_HERDR_WORKSPACE"
+    REVIEW_TASK_IDS=$(fm_backend_herdr_create_review_task "$REVIEW_CONTAINER" "$W" "$WT") || exit 1
+    read -r HERDR_TAB_ID HERDR_PANE_ID <<EOF
+$REVIEW_TASK_IDS
+EOF
+    [ -n "$HERDR_TAB_ID" ] && [ -n "$HERDR_PANE_ID" ] || { echo "error: herdr did not return review tab/pane ids" >&2; exit 1; }
+    HERDR_SES=${REVIEW_AUTHOR_TARGET%%:*}
+    HERDR_WORKSPACE_ID=$REVIEW_AUTHOR_HERDR_WORKSPACE
+    T="$HERDR_SES:$HERDR_PANE_ID"
+    WT_TARGET="$T"
+    ;;
+  esac
 else
   case "$BACKEND" in
   tmux)
@@ -4336,26 +4362,6 @@ elif [ "$RELAUNCH" -eq 1 ]; then
     fi
   fi
   [ "$KIND" = secondmate ] || validate_spawn_worktree "relaunch" "$T"
-elif [ "$REVIEW" -eq 1 ]; then
-  case "$BACKEND" in
-  tmux)
-    REVIEW_WID=$(fm_backend_tmux_create_review_task "$REVIEW_AUTHOR_TARGET" "$W" "$WT") || exit 1
-    T="${REVIEW_AUTHOR_TARGET%%:*}:$W"
-    WT_TARGET="$REVIEW_WID"
-    ;;
-  herdr)
-    REVIEW_CONTAINER="${REVIEW_AUTHOR_TARGET%%:*}:$REVIEW_AUTHOR_HERDR_WORKSPACE"
-    REVIEW_TASK_IDS=$(fm_backend_herdr_create_review_task "$REVIEW_CONTAINER" "$W" "$WT") || exit 1
-    read -r HERDR_TAB_ID HERDR_PANE_ID <<EOF
-$REVIEW_TASK_IDS
-EOF
-    [ -n "$HERDR_TAB_ID" ] && [ -n "$HERDR_PANE_ID" ] || { echo "error: herdr did not return review tab/pane ids" >&2; exit 1; }
-    HERDR_SES=${REVIEW_AUTHOR_TARGET%%:*}
-    HERDR_WORKSPACE_ID=$REVIEW_AUTHOR_HERDR_WORKSPACE
-    T="$HERDR_SES:$HERDR_PANE_ID"
-    WT_TARGET="$T"
-    ;;
-  esac
 elif [ "$REVIEW" -eq 0 ] && [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   spawn_send_text_line "$WT_TARGET" 'treehouse get'
 
