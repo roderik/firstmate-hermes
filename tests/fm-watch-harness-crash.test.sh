@@ -239,7 +239,95 @@ test_other_harness_and_scrollback_keep_ordinary_triage() {
   pass "the error on another harness or only in scrollback leaves ordinary stale triage unchanged"
 }
 
+# An idle Codex worker that finished work on this very feature and whose final
+# summary quotes the error's token and phrase in prose, with no API error
+# envelope line: it is a finished worker, not a crashed one.
+prose_summary_pane() {
+  printf '%s\n' \
+    '• Done. The watcher now relaunches a Codex worker that died on' \
+    '  thinking_signature_invalid ("Encrypted content could not be decrypted or' \
+    '  parsed") and surfaces it once the bound is spent.' \
+    '' \
+    '› Ask Codex to do anything' \
+    '' \
+    '  ? for shortcuts                                   58% context left'
+}
+
+test_prose_quoting_the_error_keeps_ordinary_triage() {
+  local dir
+  dir=$(crash_fixture prose codex prose_summary_pane)
+  crash_round "$dir" exit || fail "a finished worker quoting the error was never surfaced: $(cat "$dir/watch.out" "$dir/watch.err")"
+  [ ! -s "$dir/control.log" ] || fail "a finished worker quoting the error in prose was relaunched: $(cat "$dir/control.log")"
+  grep -F 'stopped on' "$dir/watch.out" >/dev/null \
+    && fail "a prose mention was reported as a harness crash: $(cat "$dir/watch.out")"
+  grep -F "stale: $WINDOW" "$dir/watch.out" >/dev/null \
+    || fail "the ordinary stale wake is missing: $(cat "$dir/watch.out")"
+  pass "an idle Codex worker whose summary quotes the error in prose is not relaunched"
+}
+
+# Two Codex workers dead at the same moment, each on its own pane: one poll
+# runs at most one relaunch, and the other waits for the next poll. The fake
+# control plane flags a relaunch that runs in the same poll as the previous one
+# (no capture of the first pane between them).
+test_one_relaunch_per_poll() {
+  local dir state t
+  dir=$(make_case per-poll); state="$dir/state"
+  mkdir -p "$dir/config" "$dir/panes"
+  mv "$dir/fakebin/tmux" "$dir/fakebin/tmux.real"
+  cat > "$dir/fakebin/tmux" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = capture-pane ]; then
+  prev=
+  for arg in "$@"; do
+    if [ "$prev" = -t ]; then
+      for f in "$FM_TEST_PANES"/*; do
+        case "$arg" in *":fm-$(basename "$f")"*)
+          echo x >> "$FM_TEST_CAPTURES.$(basename "$f")"
+          cat "$f"; exit 0 ;;
+        esac
+      done
+    fi
+    prev=$arg
+  done
+fi
+exec "$(dirname "$0")/tmux.real" "$@"
+SH
+  cat > "$dir/fakebin/fm-control.sh" <<'SH'
+#!/usr/bin/env bash
+seen=$(wc -l < "$FM_TEST_CAPTURES.a" | tr -d ' ')
+if [ "$(cat "$FM_TEST_MARK" 2>/dev/null)" = "$seen" ]; then
+  echo SAME-POLL >> "$FM_TEST_CONTROL_LOG"
+fi
+printf '%s' "$seen" > "$FM_TEST_MARK"
+printf '%s\n' "$1" >> "$FM_TEST_CONTROL_LOG"
+printf 'fresh agent reading its instructions %s\n' "$$" > "$FM_TEST_PANES/$1"
+exit 0
+SH
+  chmod +x "$dir/fakebin/tmux" "$dir/fakebin/fm-control.sh"
+  for t in a b; do
+    codex_crash_pane > "$dir/panes/$t"
+    printf 'window=test:fm-%s\nkind=ship\nharness=codex\nbackend=tmux\n' "$t" > "$state/$t.meta"
+    printf 'working: implementing the fix\n' > "$state/$t.status"
+    prime_status_seen "$state" "$state/$t.status"
+    printf '%s' "$(hash_pane_file "$dir/panes/$t")" > "$state/.hash-test_fm-$t"
+    printf '1\n' > "$state/.count-test_fm-$t"
+  done
+  : > "$dir/control.log"
+  : > "$dir/captures.a"
+  crash_round "$dir" absorb FM_FAKE_CREW_STATE="$WORKING" FM_FAKE_TMUX_WINDOWS="$(printf 'fm-a\nfm-b')" \
+    FM_TEST_PANES="$dir/panes" FM_TEST_MARK="$dir/relaunch.mark" FM_TEST_CAPTURES="$dir/captures" \
+    || fail "the watcher stopped instead of recovering the crashed workers: $(cat "$dir/watch.out" "$dir/watch.err")"
+  grep -Fx SAME-POLL "$dir/control.log" >/dev/null \
+    && fail "two relaunches ran in one poll: $(cat "$dir/control.log")"
+  grep -Fx a "$dir/control.log" >/dev/null && grep -Fx b "$dir/control.log" >/dev/null \
+    || fail "a crashed worker deferred to a later poll was never relaunched: $(cat "$dir/control.log")"
+  [ ! -s "$state/.wake-queue" ] || fail "a deferred crashed worker woke firstmate: $(cat "$state/.wake-queue")"
+  pass "one poll runs at most one harness-crash relaunch and the next crashed worker waits for a later poll"
+}
+
 test_codex_crash_is_relaunched_silently_with_a_continue_note
+test_prose_quoting_the_error_keeps_ordinary_triage
+test_one_relaunch_per_poll
 test_old_attempts_outside_the_window_do_not_count
 test_bound_spent_surfaces_an_ordinary_stale_wake
 test_failed_relaunch_surfaces_the_failure

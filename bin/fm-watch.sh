@@ -385,13 +385,18 @@ case "$SECONDMATE_LIVENESS_WINDOW_SECS" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_WI
 # bin/fm-control.sh relaunch, at most HARNESS_CRASH_MAX_ATTEMPTS times per
 # HARNESS_CRASH_WINDOW_SECS per task; past that bound, or when the relaunch
 # itself fails, the pane surfaces as an ordinary stale wake naming the error.
-# HARNESS_CRASH_TIMEOUT bounds one relaunch so a wedged one cannot stall the poll.
+# HARNESS_CRASH_TIMEOUT bounds one relaunch so a wedged one cannot stall the poll,
+# and HARNESS_CRASH_PER_POLL bounds how many relaunches one poll runs: a later
+# crashed pane stays stale and unmarked, so the next poll picks it up.
 HARNESS_CRASH_MAX_ATTEMPTS=${FM_HARNESS_CRASH_MAX_ATTEMPTS:-}
 case "$HARNESS_CRASH_MAX_ATTEMPTS" in ''|*[!0-9]*) HARNESS_CRASH_MAX_ATTEMPTS=3 ;; esac
 HARNESS_CRASH_WINDOW_SECS=${FM_HARNESS_CRASH_WINDOW_SECS:-}
 case "$HARNESS_CRASH_WINDOW_SECS" in ''|*[!0-9]*|0) HARNESS_CRASH_WINDOW_SECS=3600 ;; esac
 HARNESS_CRASH_TIMEOUT=${FM_HARNESS_CRASH_TIMEOUT:-}
 case "$HARNESS_CRASH_TIMEOUT" in ''|*[!0-9]*|0) HARNESS_CRASH_TIMEOUT=300 ;; esac
+HARNESS_CRASH_PER_POLL=${FM_HARNESS_CRASH_PER_POLL:-}
+case "$HARNESS_CRASH_PER_POLL" in ''|*[!0-9]*|0) HARNESS_CRASH_PER_POLL=1 ;; esac
+HARNESS_CRASH_POLL_RELAUNCHES=0
 FM_CONTROL_BIN=${FM_CONTROL_BIN:-$SCRIPT_DIR/fm-control.sh}
 # A crew that declared a pause is idling on a known external wait, so its stale
 # pane is absorbed rather than wedge-escalated.
@@ -1147,7 +1152,9 @@ secondmate_liveness_tick() {
 # is not captain-facing. When the bound is spent or the relaunch fails it
 # surfaces one ordinary stale wake per pane hash naming the error, so a worker
 # that keeps crashing still reaches firstmate. A per-task lock keeps a
-# concurrent watcher from relaunching the same worker twice.
+# concurrent watcher from relaunching the same worker twice. Once this poll has
+# run HARNESS_CRASH_PER_POLL relaunches, a further match returns 0 untouched and
+# waits for the next poll.
 harness_crash_relaunch() {  # <window> <task> <tail40> <hash> <stale-marker>
   local w=$1 task=$2 tail40=$3 h=$4 sf=$5 meta harness cause attempts out rc=0 reason note lock
   [ -n "$task" ] || return 1
@@ -1156,6 +1163,7 @@ harness_crash_relaunch() {  # <window> <task> <tail40> <hash> <stale-marker>
   harness=$(fm_meta_get "$meta" harness 2>/dev/null || true)
   cause=$(fm_harness_crash_cause "$harness" "$tail40") || return 1
   [ "$(cat "$sf" 2>/dev/null || true)" != "$h" ] || return 0
+  [ "$HARNESS_CRASH_POLL_RELAUNCHES" -lt "$HARNESS_CRASH_PER_POLL" ] || return 0
   lock="$STATE/.harness-crash-$task.lock"
   fm_lock_try_acquire "$lock" || return 0
   reason=''
@@ -1166,6 +1174,7 @@ harness_crash_relaunch() {  # <window> <task> <tail40> <hash> <stale-marker>
   elif ! fm_harness_crash_ledger_add "$STATE" "$task" attempt; then
     reason="stale: $w (stopped on $cause; auto-relaunch ledger unwritable)"
   else
+    HARNESS_CRASH_POLL_RELAUNCHES=$((HARNESS_CRASH_POLL_RELAUNCHES + 1))
     note="Your previous agent stopped on a terminal API error ($cause) that its session cannot recover from, so supervision relaunched you fresh. Continue where it stopped: read your status file and this local copy's git status and log to see how far the work got, then carry on with the task."
     out=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG"       fm_run_timed "$HARNESS_CRASH_TIMEOUT" "$FM_CONTROL_BIN" "$task" relaunch --note "$note" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ]; then
@@ -3063,6 +3072,7 @@ EOF
   # stale hash is surfaced, absorbed, or timed toward escalation once (.stale-*
   # remembers the hash already classified, or the declaration a busy pane's
   # crossed turn bound already handed to the away-mode daemon).
+  HARNESS_CRASH_POLL_RELAUNCHES=0
   while IFS= read -r w; do
     kind=$(window_kind "$w")
     task=$(window_to_task "$w" "$STATE")
