@@ -1,0 +1,88 @@
+# Live lab run of fm-review-route.sh at commit 4bc48b7 (exported via git archive into $LAB/src), FM_HOME=marked lab home, private tmux socket fm-lab
+## S1: build-done status routes exact head (round 1)
+$ fm-review-route.sh scan build
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in firstmate:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.BGJqL7/state/reviewer.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=1 head=4bc48b7ee320852163c126275e813604128173ec pr=- owner=reviewer class=security family=codex receipt=2d9fce1e2001c7c1
+rc=0
+## S2: rescan same head is deduplicated
+$ fm-review-route.sh scan build
+review already routed: task=build head=4bc48b7ee320852163c126275e813604128173ec pr=-
+rc=0
+## S3: needs-decision prose with a SHA does not spend a round
+$ fm-review-route.sh scan build
+review already routed: task=build head=4bc48b7ee320852163c126275e813604128173ec pr=-
+rc=0
+## S4: PR registration routes the recorded PR head (round 2)
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 4460c90bf97709603a8cfce5d15c2af5ab7b1aee security codex
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in firstmate:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.BGJqL7/state/reviewer.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=2 head=4460c90bf97709603a8cfce5d15c2af5ab7b1aee pr=https://github.com/o/r/pull/7 owner=reviewer class=security family=codex receipt=37f4113045d8a9b4
+rc=0
+## S5: wrong class/family refused
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 468a98acd9bed006ad28a99bde2cf941c73d5159 security claude
+fm-review-route: request disagrees with configured review class or family
+rc=1
+## S6: non-40-hex head refused
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 abc123 security codex
+fm-review-route: review needs an exact 40-hex commit
+rc=1
+## S7: foreign PR refused
+$ fm-review-route.sh request build https://github.com/o/r/pull/8 468a98acd9bed006ad28a99bde2cf941c73d5159 security codex
+fm-review-route: PR is not owned by this task
+rc=1
+## S8: third round without blocking finding is refused and escalates
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 468a98acd9bed006ad28a99bde2cf941c73d5159 security codex
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+rc=3
+## S8b: repeat third-round refusal does not re-escalate
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 468a98acd9bed006ad28a99bde2cf941c73d5159 security codex
+fm-review-route: two review rounds completed; third requires a blocking correctness or security finding
+rc=3
+## S9: polish-only exception refused
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 468a98acd9bed006ad28a99bde2cf941c73d5159 security codex nit-3 style polish only
+fm-review-route: exception must name correctness or security
+rc=1
+## S10: named blocking correctness exception routes round 3
+$ fm-review-route.sh request build https://github.com/o/r/pull/7 468a98acd9bed006ad28a99bde2cf941c73d5159 security codex correctness-17 blocking correctness regression in settlement
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+fm-send: doorbell not typed because the agent in firstmate:fm-reviewer has exited; the steer is durably recorded at /tmp/fm-lab.BGJqL7/state/reviewer.inbox/003.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+review routed: task=build round=3 head=468a98acd9bed006ad28a99bde2cf941c73d5159 pr=https://github.com/o/r/pull/7 owner=reviewer class=security family=codex receipt=c763878a6f534274
+rc=0
+## state: review-rounds receipt
+4bc48b7ee320852163c126275e813604128173ec	-	security	codex	2d9fce1e2001c7c1	-
+4460c90bf97709603a8cfce5d15c2af5ab7b1aee	https://github.com/o/r/pull/7	security	codex	37f4113045d8a9b4	-
+468a98acd9bed006ad28a99bde2cf941c73d5159	https://github.com/o/r/pull/7	security	codex	c763878a6f534274	correctness-17
+## state: cap marker
+468a98acd9bed006ad28a99bde2cf941c73d5159
+## state: wake queue entries mentioning review cap
+/tmp/fm-lab.BGJqL7/state/.wake-queue
+1790730686	1	check	review-cap-build	review cap reached: task=build pr=https://github.com/o/r/pull/7 head=468a98acd9bed006ad28a99bde2cf941c73d5159 class=security; file non-blocking polish as follow-up
+## state: reviewer inbox records
+--- state/reviewer.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-09-30T01:11:25Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=2d9fce1e2001c7c1 Independent security review requested for task build. Review exact head 4bc48b7ee320852163c126275e813604128173ec, PR -. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 2d9fce1e2001c7c1.
+--- state/reviewer.inbox/002.msg
+schema=fm-task-inbox.v1
+at=2026-09-30T01:11:26Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=37f4113045d8a9b4 Independent security review requested for task build. Review exact head 4460c90bf97709603a8cfce5d15c2af5ab7b1aee, PR https://github.com/o/r/pull/7. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id 37f4113045d8a9b4.
+--- state/reviewer.inbox/003.msg
+schema=fm-task-inbox.v1
+at=2026-09-30T01:11:28Z
+delivery=fire-and-forget
+--
+[fm-from-firstmate]⁣delivery=c763878a6f534274 Independent security review requested for task build. Review exact head 468a98acd9bed006ad28a99bde2cf941c73d5159, PR https://github.com/o/r/pull/7. Use a different model family from the implementer; target family codex. Report the verdict and finding keys to firstmate. Review request id c763878a6f534274. Blocking correctness-17: blocking correctness regression in settlement
+## reviewer pane (doorbells)
+bash-5.2$
