@@ -37,6 +37,22 @@ codex_crash_pane() {
     '  ? for shortcuts                                   61% context left'
 }
 
+# The same death in the HTTP-status form Codex prints for a rejected request,
+# wrapped across lines by the TUI.
+codex_status_crash_pane() {
+  printf '%s\n' \
+    '• Ran bun run test' \
+    '  └ 412 pass' \
+    '' \
+    '■ unexpected status 400 Bad Request: {"error":{"code":"thinking_signature_invalid","message":"The encrypted content for item' \
+    '  rs_0123 could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error"}}, url:' \
+    '  https://api.openai.com/v1/responses, request id: req_0123' \
+    '' \
+    '› Ask Codex to do anything' \
+    '' \
+    '  ? for shortcuts                                   61% context left'
+}
+
 # A fake bin/fm-control.sh: records its arguments, and on success rewrites the
 # pane the way a fresh agent would, so the next poll no longer shows the error.
 # The success cases read the crew as provably working, as a fresh agent busy on
@@ -162,21 +178,23 @@ seed_attempts() {  # <state> <count> <age-secs>
 }
 
 test_codex_crash_is_relaunched_silently_with_a_continue_note() {
-  local dir state
-  dir=$(crash_fixture relaunch codex codex_crash_pane); state="$dir/state"
-  crash_round "$dir" absorb FM_FAKE_CREW_STATE="$WORKING" || fail "the watcher stopped instead of recovering the crashed worker: $(cat "$dir/watch.out" "$dir/watch.err")"
-  [ "$(wc -l < "$dir/control.log" | tr -d ' ')" = 1 ] \
-    || fail "expected exactly one relaunch, control log: $(cat "$dir/control.log")"
-  grep -F 'crash relaunch --note ' "$dir/control.log" >/dev/null \
-    || fail "the relaunch did not go through the control plane with a note: $(cat "$dir/control.log")"
-  grep -F 'thinking_signature_invalid' "$dir/control.log" >/dev/null \
-    || fail "the continue note did not name the error: $(cat "$dir/control.log")"
-  grep -F 'Continue where it stopped' "$dir/control.log" >/dev/null \
-    || fail "the note did not tell the fresh worker to continue: $(cat "$dir/control.log")"
-  [ "$(stale_wakes "$state")" -eq 0 ] || fail "a successful relaunch still woke firstmate: $(cat "$state/.wake-queue")"
-  [ "$(ledger_rows "$state" attempt)" -eq 1 ] && [ "$(ledger_rows "$state" relaunched)" -eq 1 ] \
-    || fail "the relaunch ledger did not record the attempt and outcome: $(cat "$state/.harness-crash-relaunch-crash" 2>/dev/null)"
-  pass "a Codex worker dead on thinking_signature_invalid is relaunched once with a continue note and no wake"
+  local dir state fn
+  for fn in codex_crash_pane codex_status_crash_pane; do
+    dir=$(crash_fixture "relaunch-$fn" codex "$fn"); state="$dir/state"
+    crash_round "$dir" absorb FM_FAKE_CREW_STATE="$WORKING" || fail "the watcher stopped instead of recovering the crashed worker: $(cat "$dir/watch.out" "$dir/watch.err")"
+    [ "$(wc -l < "$dir/control.log" | tr -d ' ')" = 1 ] \
+      || fail "expected exactly one relaunch, control log: $(cat "$dir/control.log")"
+    grep -F 'crash relaunch --note ' "$dir/control.log" >/dev/null \
+      || fail "the relaunch did not go through the control plane with a note: $(cat "$dir/control.log")"
+    grep -F 'thinking_signature_invalid' "$dir/control.log" >/dev/null \
+      || fail "the continue note did not name the error: $(cat "$dir/control.log")"
+    grep -F 'Continue where it stopped' "$dir/control.log" >/dev/null \
+      || fail "the note did not tell the fresh worker to continue: $(cat "$dir/control.log")"
+    [ "$(stale_wakes "$state")" -eq 0 ] || fail "a successful relaunch still woke firstmate: $(cat "$state/.wake-queue")"
+    [ "$(ledger_rows "$state" attempt)" -eq 1 ] && [ "$(ledger_rows "$state" relaunched)" -eq 1 ] \
+      || fail "the relaunch ledger did not record the attempt and outcome: $(cat "$state/.harness-crash-relaunch-crash" 2>/dev/null)"
+  done
+  pass "a Codex worker dead on thinking_signature_invalid, bare or behind an HTTP status prefix, is relaunched once with a continue note and no wake"
 }
 
 test_old_attempts_outside_the_window_do_not_count() {

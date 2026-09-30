@@ -14,10 +14,11 @@
 #   codex  thinking_signature_invalid - the provider rejects the session's own
 #          encrypted reasoning items ("Encrypted content could not be decrypted
 #          or parsed"), so every later request in that session fails. Only the
-#          API error envelope Codex prints as its own error line counts: a line
-#          that starts (after an optional error marker such as `■`) with
-#          {"error":{"code":"thinking_signature_invalid" and whose envelope,
-#          joined across wrapped lines, closes with
+#          API error envelope on Codex's own error line counts: a line that
+#          starts with the `■` error marker and carries
+#          {"error":{"code":"thinking_signature_invalid" after any status
+#          prefix (such as `unexpected status 400 Bad Request:`), and whose
+#          envelope, joined across wrapped lines, closes with
 #          "type":"invalid_request_error"}}. The token or phrase quoted in
 #          prose, such as a finished worker's summary, is not a match.
 #
@@ -45,7 +46,7 @@ fm_harness_crash_cause() {  # <harness> <capture>
     codex)
       if printf '%s\n' "$tail" | awk '
         { sub(/^[[:space:]]+/, "") }
-        /^([^[:space:]{]+[[:space:]]+)?\{"error":\{"code":"thinking_signature_invalid"/ { buf = ""; open = 1 }
+        /^■[[:space:]].*\{"error":\{"code":"thinking_signature_invalid"/ { buf = ""; open = 1 }
         open { buf = buf $0; if (buf ~ /"type":"invalid_request_error"\}\}/) { found = 1; exit } }
         END { exit !found }'; then
         printf 'codex thinking_signature_invalid\n'
