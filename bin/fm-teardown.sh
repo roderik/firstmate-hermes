@@ -156,6 +156,10 @@
 # Projected closes share the presentation-order lock, refuse to close the
 # captain's active tab, and restore the exact response-derived pre-close tab
 # if Herdr's last-pane cleanup focuses an unrelated neighboring workspace.
+# A review task (review_of= in meta, from fm-spawn.sh --review-of) retires only
+# its own endpoint: the worktree belongs to its author, so no safety check,
+# worktree process reap, detach, or pool return touches it. The author's teardown
+# refuses while any review task naming it is still open.
 # Secondmates (kind=secondmate in meta) are retired explicitly. Normal
 # teardown refuses while their home has in-flight crewmate meta files; --force
 # is the approved discard path that prevalidates child removal targets, locks each
