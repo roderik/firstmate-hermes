@@ -1,0 +1,19 @@
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6174
+PR: https://github.com/kunchenguid/firstmate/pull/6174 task_owner=unknown head_repo=keenvc/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=a774c44869dd35b6ca406ec291912e699973109c merge_target=kunchenguid/firstmate:main stacked=no merge_owner=unknown
+MERGEABILITY: conflicting
+CHECKS: no required check has reported; readiness unconfirmed
+rc=0
+
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6174 prtask
+PR: https://github.com/kunchenguid/firstmate/pull/6174 task_owner=prtask head_repo=keenvc/firstmate base_repo=kunchenguid/firstmate base_ref=main base_sha=a774c44869dd35b6ca406ec291912e699973109c merge_target=kunchenguid/firstmate:main stacked=no merge_owner=operator
+MERGEABILITY: conflicting
+CHECKS: no required check has reported; readiness unconfirmed
+rc=0
+
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6174 other   # task does not own PR
+fm-pr-state: task owner does not own PR
+rc=2
+
+$ fm-pr-state.sh https://github.com/kunchenguid/firstmate/pull/6174 '../x'   # invalid task id
+fm-pr-state: invalid task owner
+rc=2
