@@ -162,7 +162,7 @@ case "$PROVIDER:$MODE" in
 esac
 # bin/fm-pr-merge.sh runs its own ready check before taking the control lock.
 if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
-  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD"); then
+  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
   echo "error: $GATE_REASON" >&2
   exit 1
 fi

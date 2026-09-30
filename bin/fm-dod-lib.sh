@@ -495,10 +495,10 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
 
 # Run the optional project-owned handoff check against a worker worktree. It
 # runs project commands, so only handoff boundaries call it, never state reads.
-fm_dod_ready_check() {  # <project> <worktree> [<head>]
-  local project=$1 wt=$2 head=${3:-} ready_output
+fm_dod_ready_check() {  # <project> <worktree> [<head> [<pr-number-or-branch>]]
+  local project=$1 wt=$2 head=${3:-} target=${4:-} ready_output
   [ -n "$wt" ] && [ -d "$wt" ] && [ -n "$project" ] && [ -d "$project" ] || return 0
-  if ! ready_output=$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-ready-check.sh" "$project" "$wt" ${head:+"$head"} 2>&1); then
+  if ! ready_output=$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-ready-check.sh" "$project" "$wt" "$head" ${target:+"$target"} 2>&1); then
     printf '%s\n' "project ready check failed: $(printf '%s\n' "$ready_output" | tail -n 1)"
     return 1
   fi
