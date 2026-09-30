@@ -1,0 +1,5 @@
+$ bin/fm-remote-home-provision.sh < manifest   (umask 0002)
+provisioned: <tmp>/home projects=0
+exit=0
+mode=700 <tmp>/home
+. .. .agents AGENTS.md assets bin .claude CLAUDE.md .codex config CONTRIBUTING.md .cursor data docs .fm-secondmate-home .fm-secondmate-parent .git .gitattributes .github .gitignore .greptile .grok GROK_BOT.md LICENSE .no-mistakes.yaml .omp .opencode .pi projects README.md skills state .tasks.toml tests VISION.md 

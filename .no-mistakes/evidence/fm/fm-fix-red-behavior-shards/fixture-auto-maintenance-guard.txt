@@ -1,0 +1,2 @@
+unguarded (maintenance.auto false=no, gc.auto=50 forces auto-maintenance, git 2.43.0): loose objects right after commit=728, 8s later=0, packs=1
+guarded (maintenance.auto false=yes, gc.auto=50 forces auto-maintenance, git 2.43.0): loose objects right after commit=728, 8s later=728, packs=0
