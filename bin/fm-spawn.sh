@@ -224,10 +224,12 @@
 #   --review-of creates a read-only scout tab or pane in the author's existing
 #   workspace without allocating a Treehouse or Orca worktree. It is supported
 #   on tmux and Herdr; on other backends, or when the author's endpoint or
-#   worktree is gone, it logs the reason and falls back to a pooled review
-#   worktree in the author's project. Reviewer harness wiring never lands in the
-#   author's worktree: Claude's hooks ride a state-dir --settings file, and
-#   opencode, grok, and kimi (whose wiring is worktree-resident) are refused.
+#   worktree is gone (including a recorded endpoint that no longer exists), it
+#   logs the reason and falls back to a pooled review worktree in the author's
+#   project. Reviewer harness wiring never lands in the author's worktree:
+#   Claude's hooks ride a state-dir --settings file with the author's local
+#   settings excluded via --setting-sources, and opencode, grok, and kimi
+#   (whose wiring is worktree-resident) are refused.
 #   --scout records kind=scout in the task's meta (report deliverable, scratch worktree;
 #   see AGENTS.md task lifecycle); --secondmate records kind=secondmate and launches in a
 #   provisioned firstmate home; the default is kind=ship.
@@ -1552,7 +1554,10 @@ if [ "$REVIEW" -eq 1 ]; then
     REVIEW_FALLBACK_REASON="author worktree '$REVIEW_AUTHOR_WORKTREE' is gone"
   else
     case "$REVIEW_AUTHOR_BACKEND" in
-      tmux|herdr) ;;
+      tmux|herdr)
+        fm_backend_target_exists "$REVIEW_AUTHOR_BACKEND" "$REVIEW_AUTHOR_TARGET" \
+          || REVIEW_FALLBACK_REASON="author endpoint $REVIEW_AUTHOR_TARGET on $REVIEW_AUTHOR_BACKEND is gone"
+        ;;
       *) REVIEW_FALLBACK_REASON="review-in-author-workspace is unsupported on backend '$REVIEW_AUTHOR_BACKEND'" ;;
     esac
   fi
@@ -5177,7 +5182,7 @@ fi
 LAUNCH=${LAUNCH//__PIRESUME__/$RESUME_ARGS}
 LAUNCH=${LAUNCH//__CLAUDEPERMFLAG__/$CLAUDE_PERM_FLAG}
 if [ "$REVIEW" -eq 1 ]; then
-  LAUNCH=${LAUNCH//\'\{\"feedbackDrafts\":\"off\"__CLAUDEATTRIBUTION__\}\'/"$(shell_quote "$STATE_REAL/$ID.claude-settings.json")"}
+  LAUNCH=${LAUNCH//\'\{\"feedbackDrafts\":\"off\"__CLAUDEATTRIBUTION__\}\'/"$(shell_quote "$STATE_REAL/$ID.claude-settings.json") --setting-sources user,project"}
 fi
 if [ "$KEEP_AI_TRAILERS" = 1 ]; then
   LAUNCH=${LAUNCH//__CLAUDEATTRIBUTION__/}

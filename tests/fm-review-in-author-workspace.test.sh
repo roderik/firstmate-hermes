@@ -30,6 +30,7 @@ make_review_case() {  # <name> -> "<home>|<proj>|<wt>|<fakebin>"
   cat >"$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in new-window) printf '@77\n'; exit 0 ;; esac
+case "$*" in *"#{pane_id}"*) [ -z "${FM_FAKE_AUTHOR_GONE:-}" ] || exit 1 ;; esac
 exec "$(dirname "$0")/tmux-base" "$@"
 SH
   chmod +x "$fakebin/tmux"
@@ -48,7 +49,6 @@ SH
 }
 
 read_case() {
-  # shellcheck disable=SC2034 # PROJ_DIR is part of the shared record shape
   IFS='|' read -r HOME_DIR PROJ_DIR WT_DIR FAKEBIN_DIR <<EOF
 $1
 EOF
@@ -105,8 +105,8 @@ after:  $after"
     and (.hooks.Stop[0].hooks[0].command | contains($id + ".turn-ended"))
     and (.hooks.UserPromptSubmit[0].hooks[0].command | contains(" " + $id + " busy") or contains("'"'"'" + $id + "'"'"' busy"))
   ' "$settings" >/dev/null || fail "review claude settings are not the reviewer's hooks: $(cat "$settings")"
-  grep -F -- "--settings '$settings'" "$launch_log" >/dev/null \
-    || fail "claude launch does not load the state-dir settings file: $(cat "$launch_log")"
+  grep -F -- "--settings '$settings' --setting-sources user,project" "$launch_log" >/dev/null \
+    || fail "claude review launch must load the state-dir settings and skip the author's local settings: $(cat "$launch_log")"
   pass "a claude review spawn loads its hooks from state/ and leaves the author's worktree wiring byte-identical"
 
   printf '%s\n' '# Review' 'No findings.' >"$HOME_DIR/data/$id/report.md"
@@ -147,9 +147,26 @@ test_worktree_wired_harness_refused() {
   pass "opencode, grok, and kimi reviews are refused before touching the author's worktree"
 }
 
+test_dead_author_endpoint_falls_back() {
+  local rec id=review-3 out
+  rec=$(make_review_case dead-author)
+  read_case "$rec"
+  fm_test_spawn_brief "$HOME_DIR" "$id"
+  out=$(FM_FAKE_AUTHOR_GONE=1 run_review_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" \
+    "$id" --review-of "$AUTHOR" --harness claude)
+  case "$out" in
+    *"notice: review $id of $AUTHOR falls back to a pooled review worktree in $PROJ_DIR: author endpoint fmsess:fm-$AUTHOR on tmux is gone"*) ;;
+    *) fail "a recorded but dead author endpoint must take the logged pool fallback: $out" ;;
+  esac
+  [ ! -e "$HOME_DIR/state/$id.claude-settings.json" ] \
+    || fail "a fallback review must not take the in-workspace claude settings path"
+  pass "a review whose recorded author endpoint is dead falls back to a pooled worktree with a logged reason"
+}
+
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found"; exit 0; }
 
 test_claude_review_keeps_author_wiring
 test_worktree_wired_harness_refused
+test_dead_author_endpoint_falls_back
 
 echo "all fm-review-in-author-workspace tests passed"
