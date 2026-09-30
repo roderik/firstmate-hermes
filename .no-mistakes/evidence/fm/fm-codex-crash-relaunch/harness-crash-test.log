@@ -1,0 +1,8 @@
+ok - a Codex worker dead on thinking_signature_invalid, bare or behind an HTTP status prefix, is relaunched once with a continue note and no wake
+ok - an idle Codex worker whose summary quotes the error in prose is not relaunched
+ok - one poll runs at most one harness-crash relaunch and the next crashed worker waits for a later poll
+ok - relaunch attempts older than the window do not spend the bound
+ok - a worker that keeps crashing past the bound surfaces as one ordinary stale wake
+ok - a relaunch the control plane refuses surfaces as a stale wake naming the refusal
+ok - the error on another harness or only in scrollback leaves ordinary stale triage unchanged
+# all fm-watch-harness-crash tests passed
