@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Run a project's declared handoff check before Firstmate records a ship ready.
-# Usage: fm-ready-check.sh <project> <worktree> [<head>]
+# Usage: fm-ready-check.sh <project> <worktree> [<head> [<pr-number-or-branch>]]
 # The declaration is read from the registered project checkout, never from the
 # worker's branch: an executable .firstmate/ready-check or a package.json script
 # named pr:ready-check. The declared check then runs inside the worker worktree;
 # a package script whose text differs on the worker's branch is refused.
+# A pr:ready-check script receives one argument: <pr-number-or-branch> when
+# given (callers pass the PR number once a PR is known), else the worktree's
+# current branch name; it gets no argument only on a detached worktree.
 # A declared check runs only on a clean worktree, and only at <head> when given,
 # so it judges the committed content that ships rather than uncommitted files.
 # The check is bounded by FM_READY_CHECK_TIMEOUT seconds (default 1800).
@@ -14,10 +17,11 @@ usage() {
   sed -n '2,/^set -eu$/s/^# \{0,1\}//p' "$0"
 }
 [ "${1:-}" = --help ] || [ "${1:-}" = -h ] && { usage; exit 0; }
-[ "$#" -eq 2 ] || [ "$#" -eq 3 ] || { usage >&2; exit 2; }
+[ "$#" -ge 2 ] && [ "$#" -le 4 ] || { usage >&2; exit 2; }
 PROJECT=$1
 WORKTREE=$2
 HEAD_SHA=${3:-}
+TARGET=${4:-}
 [ -d "$PROJECT" ] || { echo "ready-check: project checkout is missing: $PROJECT" >&2; exit 1; }
 [ -d "$WORKTREE" ] || { echo "ready-check: worktree is missing: $WORKTREE" >&2; exit 1; }
 PROJECT=$(cd "$PROJECT" && pwd -P)
@@ -47,6 +51,8 @@ elif [ -f "$PROJECT/package.json" ] && grep -q '"pr:ready-check"' "$PROJECT/pack
     else
       CMD=(npm run pr:ready-check)
     fi
+    [ -n "$TARGET" ] || TARGET=$(git -C "$WORKTREE" branch --show-current 2>/dev/null || true)
+    [ -z "$TARGET" ] || CMD+=("$TARGET")
   fi
 fi
 if [ "${#CMD[@]}" -eq 0 ]; then

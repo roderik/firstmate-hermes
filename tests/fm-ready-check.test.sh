@@ -39,6 +39,31 @@ if PATH="$DIR/fakebin:$PATH" "$SCRIPT" "$DIR/pkg" "$DIR/pkgwt" >/dev/null 2>&1; 
   fail "a worker-edited pr:ready-check script was accepted"
 fi
 
+# A pr:ready-check that needs <pr-number-or-branch> gets the PR number when
+# given, else the worktree branch, and fails with usage exit 2 without one.
+mkdir -p "$DIR/argpkg" "$DIR/argwt" "$DIR/argbin"
+cat > "$DIR/argbin/npm" <<'SH'
+#!/usr/bin/env bash
+[ "$1 $2" = "run pr:ready-check" ] || exit 1
+[ -n "${3:-}" ] || exit 2
+echo "target=$3" > "$ARG_LOG"
+SH
+chmod +x "$DIR/argbin/npm"
+printf '%s\n' '{"scripts":{"pr:ready-check":"check"}}' > "$DIR/argpkg/package.json"
+git -C "$DIR/argwt" init -q -b fm/some-task
+cp "$DIR/argpkg/package.json" "$DIR/argwt/package.json"
+git -C "$DIR/argwt" add package.json
+git -C "$DIR/argwt" -c user.name=t -c user.email=t@t commit -qm base
+export ARG_LOG="$DIR/arg.log"
+PATH="$DIR/argbin:$PATH" "$SCRIPT" "$DIR/argpkg" "$DIR/argwt" "" 15402 >/dev/null 2>&1 || fail "PR number was not passed to pr:ready-check"
+assert_contains "$(cat "$ARG_LOG")" 'target=15402' "PR number argument missing"
+PATH="$DIR/argbin:$PATH" "$SCRIPT" "$DIR/argpkg" "$DIR/argwt" >/dev/null 2>&1 || fail "branch name was not passed to pr:ready-check"
+assert_contains "$(cat "$ARG_LOG")" 'target=fm/some-task' "branch argument missing"
+git -C "$DIR/argwt" checkout -q --detach
+rc=0
+PATH="$DIR/argbin:$PATH" "$SCRIPT" "$DIR/argpkg" "$DIR/argwt" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 2 ] || fail "a detached worktree should run pr:ready-check without an argument (rc=$rc)"
+
 mkdir -p "$DIR/legacy"
 out=$("$SCRIPT" "$DIR/legacy" "$DIR/wt") || fail "undeclared check should preserve legacy behavior"
 assert_contains "$out" 'not declared' "undeclared check was not reported"

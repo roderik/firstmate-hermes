@@ -419,7 +419,7 @@ if [ "${READY_KIND:-ship}" = ship ]; then
       && [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" = "$READY_HEAD" ]; then
       READY_BOUND=$READY_HEAD
     else
-      READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" ${READY_HEAD:+"$READY_HEAD"}) \
+      READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" "$READY_HEAD" "$PR_NUMBER") \
         || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
       case "$READY_OUT" in
         *'ready-check: passed'*)
