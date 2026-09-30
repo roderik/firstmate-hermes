@@ -223,7 +223,11 @@
 #   config reread generations because the new agent reads the converged files.
 #   --review-of creates a read-only scout tab or pane in the author's existing
 #   workspace without allocating a Treehouse or Orca worktree. It is supported
-#   on tmux and Herdr; other backends refuse clearly.
+#   on tmux and Herdr; on other backends, or when the author's endpoint or
+#   worktree is gone, it logs the reason and falls back to a pooled review
+#   worktree in the author's project. Reviewer harness wiring never lands in the
+#   author's worktree: Claude's hooks ride a state-dir --settings file, and
+#   opencode, grok, and kimi (whose wiring is worktree-resident) are refused.
 #   --scout records kind=scout in the task's meta (report deliverable, scratch worktree;
 #   see AGENTS.md task lifecycle); --secondmate records kind=secondmate and launches in a
 #   provisioned firstmate home; the default is kind=ship.
@@ -1541,18 +1545,23 @@ if [ "$REVIEW" -eq 1 ]; then
     echo "error: review author task $REVIEW_OF has no project record; cannot fall back to a pool-worktree review" >&2
     exit 1
   }
-  if [ -z "$REVIEW_AUTHOR_TARGET" ] || [ ! -d "$REVIEW_AUTHOR_WORKTREE" ]; then
+  REVIEW_FALLBACK_REASON=
+  if [ -z "$REVIEW_AUTHOR_TARGET" ]; then
+    REVIEW_FALLBACK_REASON="author task $REVIEW_OF has no recorded endpoint"
+  elif [ ! -d "$REVIEW_AUTHOR_WORKTREE" ]; then
+    REVIEW_FALLBACK_REASON="author worktree '$REVIEW_AUTHOR_WORKTREE' is gone"
+  else
+    case "$REVIEW_AUTHOR_BACKEND" in
+      tmux|herdr) ;;
+      *) REVIEW_FALLBACK_REASON="review-in-author-workspace is unsupported on backend '$REVIEW_AUTHOR_BACKEND'" ;;
+    esac
+  fi
+  if [ -n "$REVIEW_FALLBACK_REASON" ]; then
     REVIEW=0
     REVIEW_FALLBACK=1
-    KIND=scout
-    PROJ="$REVIEW_AUTHOR_PROJECT"
-    echo "notice: author workspace for $REVIEW_OF is gone; falling back to a pooled review worktree" >&2
+    echo "notice: review $ID of $REVIEW_OF falls back to a pooled review worktree in $REVIEW_AUTHOR_PROJECT: $REVIEW_FALLBACK_REASON" >&2
   fi
   if [ "$REVIEW" -eq 1 ]; then
-  case "$REVIEW_AUTHOR_BACKEND" in
-    tmux|herdr) ;;
-    *) echo "error: review-in-author-workspace is unsupported on backend '$REVIEW_AUTHOR_BACKEND'; use a pool-worktree review" >&2; exit 1 ;;
-  esac
   if [ "$BACKEND_SET" -eq 1 ] && [ "$BACKEND_ARG" != "$REVIEW_AUTHOR_BACKEND" ]; then
     echo "error: review backend '$BACKEND_ARG' does not match author backend '$REVIEW_AUTHOR_BACKEND'" >&2
     exit 1
@@ -1839,6 +1848,10 @@ if [ "$RELAUNCH" -eq 1 ]; then
   RELAUNCH_PRIOR_HARNESS=$(fm_meta_get "$RELAUNCH_META" harness)
   KIND=$(fm_meta_get "$RELAUNCH_META" kind)
   [ -n "$KIND" ] || KIND=ship
+  if [ -n "$(fm_meta_get "$RELAUNCH_META" review_of)" ]; then
+    echo "error: task $ID is a review in another task's workspace; tear it down and spawn a fresh --review-of instead of relaunching it" >&2
+    exit 1
+  fi
   # A secondmate whose endpoint is gone already has ONE owner for that
   # recovery: the session-start liveness sweep respawns it with
   # `fm-spawn.sh <id> --secondmate`, which stands its home's own workspace back
@@ -1916,7 +1929,7 @@ elif [ "$KIND" = secondmate ]; then
     ;;
   esac
 else
-  if [ "$REVIEW_FALLBACK" -eq 1 ]; then
+  if [ "$REVIEW" -eq 1 ] || [ "$REVIEW_FALLBACK" -eq 1 ]; then
     PROJ="$REVIEW_AUTHOR_PROJECT"
   else
     PROJ=${POS[1]}
@@ -2325,6 +2338,18 @@ case "$ARG3" in
   }
   ;;
 esac
+if [ "$REVIEW" -eq 1 ]; then
+  [ "$RAW_LAUNCH" -eq 0 ] || {
+    echo "error: a review in the author's workspace cannot use a raw launch command; its harness wiring must stay out of the author's worktree" >&2
+    exit 1
+  }
+  case "$HARNESS" in
+  opencode* | grok* | kimi*)
+    echo "error: harness '$HARNESS' cannot review in author task $REVIEW_OF's workspace: its turn-end wiring lives inside the worktree and would overwrite the author's; pick another harness for this review" >&2
+    exit 1
+    ;;
+  esac
+fi
 
 # muse, gemini, agy, and devin are verified as CREWMATE/SCOUT adapters only. A secondmate is
 # a firstmate instance, so it needs a primary supervision protocol.
@@ -4575,17 +4600,26 @@ if [ "$KIND" != secondmate ]; then
     # the turn-ended NOTIFICATION touch for the watcher. Every
     # hook command tolerates a refused event (|| true) so a stale-gen writer
     # can never break Claude's own lifecycle.
-    mkdir -p "$WT/.claude"
     busy_cmd_prefix="$(shell_quote "$FM_ROOT/bin/fm-busy-event.sh") apply $(shell_quote "$STATE_REAL") $(shell_quote "$ID")"
     busy_suffix="--gen $(shell_quote "$BUSY_GEN") --source claude-hook"
     j_submit=$(json_escape "$busy_cmd_prefix busy $busy_suffix --event user-prompt-submit 2>/dev/null || true")
     j_stop=$(json_escape "touch $(shell_quote "$TURNEND"); $busy_cmd_prefix idle $busy_suffix --event stop 2>/dev/null || true")
     j_stopfail=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event stop-failure 2>/dev/null || true")
     j_sessionend=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event session-end 2>/dev/null || true")
-    cat >"$WT/.claude/settings.local.json" <<EOF
-{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$j_submit"}]}],"Stop":[{"hooks":[{"type":"command","command":"$j_stop"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"$j_stopfail"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"$j_sessionend"}]}]}}
-EOF
-    exclude_path '.claude/settings.local.json'
+    claude_hooks='"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"'$j_submit'"}]}],"Stop":[{"hooks":[{"type":"command","command":"'$j_stop'"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"'$j_stopfail'"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"'$j_sessionend'"}]}]}'
+    if [ "$REVIEW" -eq 1 ]; then
+      # A reviewer shares the author's worktree, so its hooks ride the launch's
+      # own --settings file in state/ and never replace the author's
+      # settings.local.json. The file also carries the inline launch policy it
+      # replaces on the command line.
+      claude_policy='"feedbackDrafts":"off"'
+      [ "$KEEP_AI_TRAILERS" = 1 ] || claude_policy="$claude_policy"',"attribution":{"commit":"","pr":"","sessionUrl":false}'
+      printf '{%s,%s}\n' "$claude_policy" "$claude_hooks" >"$STATE_REAL/$ID.claude-settings.json"
+    else
+      mkdir -p "$WT/.claude"
+      printf '{%s}\n' "$claude_hooks" >"$WT/.claude/settings.local.json"
+      exclude_path '.claude/settings.local.json'
+    fi
     ;;
   devin)
     if [ "$RAW_LAUNCH" -eq 0 ]; then
@@ -4981,7 +5015,7 @@ preserve_relaunch_meta() {
   echo "project=$PROJ_ABS"
   echo "harness=$HARNESS"
   echo "kind=$KIND"
-  [ "$REVIEW" -eq 1 ] && echo "review_of=$REVIEW_OF" && echo "review_only=1"
+  [ "$REVIEW" -eq 0 ] || echo "review_of=$REVIEW_OF"
   [ -z "$MODE" ] || echo "mode=$MODE"
   [ -z "$YOLO" ] || echo "yolo=$YOLO"
   [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
@@ -5142,6 +5176,9 @@ if [ "$RELAUNCH" -eq 1 ]; then
 fi
 LAUNCH=${LAUNCH//__PIRESUME__/$RESUME_ARGS}
 LAUNCH=${LAUNCH//__CLAUDEPERMFLAG__/$CLAUDE_PERM_FLAG}
+if [ "$REVIEW" -eq 1 ]; then
+  LAUNCH=${LAUNCH//\'\{\"feedbackDrafts\":\"off\"__CLAUDEATTRIBUTION__\}\'/"$(shell_quote "$STATE_REAL/$ID.claude-settings.json")"}
+fi
 if [ "$KEEP_AI_TRAILERS" = 1 ]; then
   LAUNCH=${LAUNCH//__CLAUDEATTRIBUTION__/}
 else
@@ -5277,9 +5314,6 @@ if [ "$LAVISH_AXI_HOST_CONFIG_PRESENT" = 1 ]; then
   LAUNCH="export LAVISH_AXI_HOST=$(shell_quote "$LAVISH_AXI_HOST"); $LAUNCH"
 fi
 LAUNCH="export COMPACT_ADVISER_DISABLE=1; $LAUNCH"
-if [ "$REVIEW" -eq 1 ]; then
-  LAUNCH="export FM_REVIEW_READ_ONLY=1; $LAUNCH"
-fi
 # When the live-harness gate has exported DISABLE_AUTOUPDATER into this spawn's
 # own environment, carry it into the launch command text so Claude Code's
 # auto-updater cannot rewrite the shared binary during a live run. Embedding the
@@ -5339,9 +5373,6 @@ fi
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   spawn_send_text_line "$T" "export FM_TASK_ID=$ID"
 fi
-if [ "$REVIEW" -eq 1 ]; then
-  spawn_send_text_line "$T" "export FM_REVIEW_READ_ONLY=1"
-fi
 # Send through the exact channel that already ships GOTMPDIR, so every backend
 # and harness - ship, scout, and secondmate - gets it before launch. Skipped
 # entirely when trace context is off.
@@ -5368,7 +5399,7 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
     TMPDIR TMP TEMP GOTMPDIR TMUX TMUX_PANE HERDR_ENV HERDR_SESSION HERDR_SOCKET_PATH \
     HERDR_PANE_ID CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_TAB_ID CMUX_PANEL_ID \
     CMUX_SOCKET_PATH ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID FM_ZELLIJ_SESSION \
-    FM_TASK_ID FM_REVIEW_READ_ONLY COMPACT_ADVISER_DISABLE LAVISH_AXI_HOST \
+    FM_TASK_ID COMPACT_ADVISER_DISABLE LAVISH_AXI_HOST \
     $LAUNCH_ENV_NAMES; do
     # Only validated names enter shell syntax. Values expand once, quoted, in
     # the pane shell and never become source text or spawn-process snapshots.
@@ -5386,7 +5417,6 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
   # $LAUNCH is what gives the wrapping `/bin/sh` itself the switch, not only the
   # agent command it runs.
   LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX COMPACT_ADVISER_DISABLE=1"
-  [ "$REVIEW" -eq 1 ] && LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX FM_REVIEW_READ_ONLY=1"
   if [ -n "$SPAWN_TRACEPARENT" ]; then
     # shellcheck disable=SC2016
     LAUNCH_ENV_PREFIX="$LAUNCH_ENV_PREFIX "'${TRACEPARENT+"TRACEPARENT=$TRACEPARENT"}'
