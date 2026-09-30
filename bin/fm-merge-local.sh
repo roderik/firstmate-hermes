@@ -57,6 +57,22 @@ if ! fm_backlog_meta_spawn_gen_optional "$META" "$STATE"; then
   exit 1
 fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
+# The project's declared ready check is the local-only handoff gate. It runs
+# before the control lock so a long check cannot hold the task's lock.
+# It checks the committed branch tip the merge lands, and the merge is bound to
+# that tip only when a declared check passed on it.
+READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
+READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
+READY_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
+READY_SHA=
+if [ "$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)" = local-only ] \
+  && [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ]; then
+  READY_TIP=$(git -C "$READY_PROJECT" rev-parse --verify --quiet "refs/heads/${READY_BRANCH:-fm/$ID}^{commit}" || true)
+  [ -n "$READY_TIP" ] || { echo "error: task $ID ship branch has no commit; refusing to run the ready check or merge" >&2; exit 1; }
+  READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" "$READY_TIP") \
+    || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+  case "$READY_OUT" in *'ready-check: passed'*) READY_SHA=$READY_TIP ;; esac
+fi
 
 MERGE_CONTROL_LOCK=
 merge_control_cleanup() {
@@ -101,6 +117,10 @@ if ! git check-ref-format --branch "$BRANCH" >/dev/null 2>&1; then
   exit 1
 fi
 git -C "$PROJ" rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null || { echo "error: branch $BRANCH does not exist in $PROJ" >&2; exit 1; }
+if [ -n "$READY_SHA" ] && [ "$(git -C "$PROJ" rev-parse --verify --quiet "refs/heads/$BRANCH^{commit}")" != "$READY_SHA" ]; then
+  echo "error: branch $BRANCH moved after its ready check; refusing to merge" >&2
+  exit 1
+fi
 
 DEFAULT=$(default_branch) || { echo "error: cannot determine default branch for $PROJ; expected origin/HEAD, main, or master" >&2; exit 1; }
 

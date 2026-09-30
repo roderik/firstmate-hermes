@@ -142,6 +142,12 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
+# bin/fm-pr-merge.sh runs its own ready check before taking the control lock.
+if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD"); then
+  echo "error: $GATE_REASON" >&2
+  exit 1
+fi
 if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
   && ! GATE_REASON=$(fm_dod_accept_ship_done "${KIND:-ship}" "$MODE" "$WT" "$PROJECT" "$DONE_LINE" "$STATE" "$ID" "$META"); then
   echo "error: $GATE_REASON" >&2
@@ -178,10 +184,19 @@ META_LOCK_HELD=1
 META_DEVICE=$(fm_pr_file_device "$META") || exit 1
 STATE_DEVICE=$(fm_pr_file_device "$STATE") || exit 1
 [ "$META_DEVICE" = "$STATE_DEVICE" ] || { echo "error: task metadata is unavailable" >&2; exit 1; }
+# A recorded pr_head lets bin/fm-pr-merge.sh skip the ready check, so the
+# merge-time re-record keeps the previous one rather than record a head that
+# the merge's own ready check (FM_PR_READY_BOUND) did not cover.
+KEEP_PR_HEAD=0
+if [ "${FM_PR_CHECK_MERGE:-}" = 1 ] && [ -n "${FM_PR_READY_BOUND:-}" ] && [ "$PR_HEAD" != "$FM_PR_READY_BOUND" ]; then
+  KEEP_PR_HEAD=1
+  PR_HEAD=
+fi
 META_TMP=$(mktemp "$STATE/.fm-pr-meta.XXXXXX") || exit 1
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    pr=*|pr_head=*) ;;
+    pr=*) ;;
+    pr_head=*) [ "$KEEP_PR_HEAD" = 1 ] || continue; printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
     *) printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
   esac
 done < "$META"
