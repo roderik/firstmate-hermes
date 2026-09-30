@@ -1110,13 +1110,20 @@ DRAIN_VIEW_TMP=
 # payload is omitted from the worker-facing turn.
 SUPPRESSED_TERMINAL_SEQS=
 SUPPRESSED_TERMINAL_COUNT=0
+TERMINAL_NOTICE_CANDIDATES=$(printf '%s\n' "$RAW_ROWS" | awk -F '\t' -v ere="$FM_WAKE_TERMINAL_NOTICE_ERE" '
+  $3 == "check" && $4 ~ /\.check\.sh$/ {
+    prefix = "check: " $4 ": "
+    if (substr($5, 1, length(prefix)) != prefix) next
+    if (tolower(substr($5, length(prefix) + 1)) ~ ere) print
+  }
+') || exit 1
 while IFS=$(printf '\t') read -r _epoch seq kind key payload; do
-  [ "$kind" = check ] || continue
+  [ -n "$seq" ] || continue
   fm_wake_terminal_notice_suppressed "$key" "$payload" || continue
   SUPPRESSED_TERMINAL_SEQS="${SUPPRESSED_TERMINAL_SEQS}${seq} "
   SUPPRESSED_TERMINAL_COUNT=$((SUPPRESSED_TERMINAL_COUNT + 1))
 done <<EOF
-$RAW_ROWS
+$TERMINAL_NOTICE_CANDIDATES
 EOF
 ACK_THROUGH=$(printf '%s\n' "$RAW_ROWS" | awk -F '\t' '$2 ~ /^[0-9]+$/ && $2 > max { max=$2 } END { print max + 0 }') || exit 1
 case "${FM_WAKE_DRAIN_TEST_DELAY_BEFORE_COMMIT:-0}" in

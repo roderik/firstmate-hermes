@@ -278,7 +278,7 @@ test_drain_suppresses_terminal_bot_notice_for_merged_task() {
   printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
     > "$state/task-terminal.pr-poll-merge-notified"
   append_wake "$state" check "$state/task-terminal.check.sh" \
-    'check: task-terminal.check.sh: bot approval for already merged PR' \
+    "check: $state/task-terminal.check.sh: bot approval for already merged PR" \
     || fail "terminal bot notice append failed"
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "terminal bot notice drain failed"
@@ -305,19 +305,27 @@ test_drain_keeps_terminal_notice_loud_without_proof() {
   printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
     > "$state/task-resumed.pr-poll-merge-notified"
   append_wake "$state" check "$state/task-resumed.check.sh" \
-    'check: task-resumed.check.sh: scheduled workflow failed' \
+    "check: $state/task-resumed.check.sh: scheduled workflow failed" \
     || fail "resumed task notice append failed"
   printf 'done: PR merged\n' > "$state/task-badmark.status"
   printf 'stale leftover\n' > "$state/task-badmark.pr-poll-merge-notified"
   append_wake "$state" check "$state/task-badmark.check.sh" \
-    'check: task-badmark.check.sh: scheduled workflow failed' \
+    "check: $state/task-badmark.check.sh: scheduled workflow failed" \
     || fail "malformed marker notice append failed"
+  printf 'done: PR merged\n' > "$state/ci-bot-approval.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 9 \
+    > "$state/ci-bot-approval.pr-poll-merge-notified"
+  append_wake "$state" check "$state/ci-bot-approval.check.sh" \
+    "check: $state/ci-bot-approval.check.sh: deploy to prod failed" \
+    || fail "path-matching notice append failed"
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2>/dev/null || fail "unproven terminal notice drain failed"
   grep -F 'task-resumed.check.sh: scheduled workflow failed' "$out" >/dev/null \
     || fail "a notice for a task resumed after done was suppressed"
   grep -F 'task-badmark.check.sh: scheduled workflow failed' "$out" >/dev/null \
     || fail "a malformed merge marker suppressed a notice"
+  grep -F 'ci-bot-approval.check.sh: deploy to prod failed' "$out" >/dev/null \
+    || fail "a check path matching the terminal pattern suppressed an unrelated notice"
   if grep -F 'WAKE TERMINAL NOTICES SUPPRESSED' "$out" >/dev/null; then
     fail "unproven terminal notices were counted as suppressed"
   fi

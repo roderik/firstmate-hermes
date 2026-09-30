@@ -1994,18 +1994,26 @@ fm_wake_clean_field() {
   LC_ALL=C tr '\t\r\n' '   '
 }
 
+FM_WAKE_TERMINAL_NOTICE_ERE='(scheduled[[:space:]_-]*workflow.*(fail|red)|bot.*approv|approv.*bot|approval.*(already|merged)|approved.*(already|merged))'
+
 # fm_wake_terminal_notice_suppressed <check-key> <payload>
 # A scheduled-workflow failure or bot-approval check notice for a task whose PR
 # has an authoritative v1 merged receipt and whose current status is terminal is
-# stale terminal noise. Succeeds only with that full proof; any uncertainty
-# fails so the notice stays loud. The watcher and the drain share this owner.
+# stale terminal noise. Only the check output after the `check: <key>: ` prefix
+# is matched, never the check path. Succeeds only with that full proof; any
+# uncertainty fails so the notice stays loud. The watcher and the drain share
+# this owner.
 fm_wake_terminal_notice_suppressed() {
-  local key=$1 payload=$2 task marker marker_version status_file last_status
+  local key=$1 payload=$2 output task marker marker_version status_file last_status
   case "$key" in
     *.check.sh) task=${key##*/}; task=${task%.check.sh} ;;
     *) return 1 ;;
   esac
-  printf '%s' "$payload" | grep -Eiq '(scheduled[[:space:]_-]*workflow.*(fail|red)|bot.*approv|approv.*bot|approval.*(already|merged)|approved.*(already|merged))' || return 1
+  case "$payload" in
+    "check: $key: "*) output=${payload#"check: $key: "} ;;
+    *) return 1 ;;
+  esac
+  printf '%s' "$output" | grep -Eiq "$FM_WAKE_TERMINAL_NOTICE_ERE" || return 1
   marker="$STATE/$task.pr-poll-merge-notified"
   [ -f "$marker" ] && [ ! -L "$marker" ] || return 1
   marker_version=
