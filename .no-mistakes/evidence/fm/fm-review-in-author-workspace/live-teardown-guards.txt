@@ -1,0 +1,16 @@
+$ FM_HOME=<lab> bin/fm-teardown.sh author-1        # while review-1 is open
+REFUSED: author task author-1 still has review task review-1 open; tear down the reviewer tab first, then retry the author teardown
+EXIT=1
+
+$ FM_HOME=<lab> bin/fm-teardown.sh review-1
+teardown review-1 complete (window fmsess:fm-review-1, worktree <lab>/wt/author)
+EXIT=0
+
+$ tmux -L fm-lab list-windows -a   (after review teardown)
+fmsess:fm-author-1 cwd=<lab>/wt/author cmd=bash
+fmsess:driver cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT cmd=bash
+
+author worktree still present: <lab>/wt/author
+author settings.local.json sha256 after teardown: 4a8a965475f03b485ccd48000c823193fd10ee6cb606506865c4a9f3184bec10  -
+(before spawn:                                    4a8a965475f03b485ccd48000c823193fd10ee6cb606506865c4a9f3184bec10)
+state/review-1.claude-settings.json after teardown: ls: cannot access '<lab>/state/review-1.claude-settings.json': No such file or directory

@@ -1,0 +1,78 @@
+$ FM_HOME=<lab> bin/fm-spawn.sh review-1 --review-of author-1 --harness claude   (real tmux 3.4, lab socket fm-lab, target 5b28ea4)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+spawned review-1 harness=claude kind=scout window=fmsess:fm-review-1 worktree=<lab>/wt/author
+EXIT=0
+
+== windows after review spawn (exactly one new window, in the author session, cwd = author worktree)
+fmsess:fm-author-1 @0 cwd=<lab>/wt/author cmd=bash
+fmsess:driver @1 cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT cmd=bash
+fmsess:fm-review-1 @2 cwd=<lab>/wt/author cmd=claude
+
+== review-1.meta
+window=fmsess:fm-review-1
+endpoint_task_id=review-1
+worktree=<lab>/wt/author
+project=<lab>/proj/demo
+harness=claude
+kind=scout
+review_of=author-1
+tasktmp=/tmp/fm-review-1
+model=default
+effort=default
+busy_gen=g1790728722.3060811.10817
+spawn_gen=s1790728722.3059977.6509
+
+== review-1.busy-state (reviewer hooks drove its own busy record)
+v1 gen=g1790728722.3060811.10817 seq=3 state=idle source=claude-hook event=stop ts=1790728738
+
+== reviewer claude process args
+claude --dangerously-skip-permissions --add-dir <lab>/state/operational-inbox --add-dir <lab>/state/review-1.inbox --add-dir <lab>/data/review-1 --add-dir /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT/.agents/skills --settings <lab>/state/review-1.claude-settings.json --setting-sources user,project --append-system-prompt You are a task worker launched by Firstmate, your supervising orchestrator for the same human operator. The launch-brief record named by the initial user message and messages in the Firstmate in
+
+
+== reviewer state-dir settings (hook events)
+{"feedbackDrafts":"off","hooks":["SessionEnd","Stop","StopFailure","UserPromptSubmit"]}
+
+== author settings.local.json sha256 before / after
+b4d49acf5f95e90c7df86a1d6545c5b40d9ff7bab81271bff990f19213c35623  <lab>/wt/author/.claude/settings.local.json
+b4d49acf5f95e90c7df86a1d6545c5b40d9ff7bab81271bff990f19213c35623  <lab>/wt/author/.claude/settings.local.json
+
+== author hook marker (must be absent: author hooks did not fire for reviewer turns)
+ls: cannot access '<lab>/AUTHOR-HOOK-FIRED': No such file or directory
+
+== git -C author-wt status --porcelain / HEAD
+!! .claude/
+43d3a06 author change
+
+== git worktree list for project (no pool worktree added)
+<lab>/proj/demo  bd383b1 [main]
+<lab>/wt/author  43d3a06 [fm/author-1]
+
+== treehouse calls (none expected)
+cat: <lab>/treehouse-calls.log: No such file or directory
+
+== report.md written by reviewer
+# Review: author-1 commit 43d3a06
+
+**Verdict: APPROVE (no defects). Commit message needs work.**
+
+- Scope: one file, `README.md`, one line added (`change`) after the existing `hi`.
+- Correctness: nothing to break. The file stays valid, and no code, config, or tests are affected.
+- Nit: the commit message "author change" and the added text "change" don't explain anything. If this lands for real, use a message that says what changed and why.
+- The review was read-only. I made no changes to the worktree, index, or HEAD.
+
+== reviewer pane (tail)
+ ▐▛███▛█   Claude Code v2.1.285
+▝▜██████▀  Opus 5.5 with medium effort · API Usage Billing
+ ▝▝   ▝▝   <lab>/wt/author
+❯ : Firstmate operational input waiting: read '<lab>/state/operational-inbox/1790728723-546eb2562481c8f3.msg' and handle its contents as Firstmate operational input.
+  Read 2 files, ran 2 shell commands
+● I approve commit 43d3a06 with no defects found; the only issue is the commit message.
+  - What it changes: it adds one line, change, to README.md after the existing hi. No code, config or tests are touched, so nothing can break.
+  - Nit: the commit message "author change" and the added text "change" don't say what changed or why.
+  The verdict is written to <lab>/data/review-1/report.md. I only read the commit and made no changes to the worktree, index or HEAD. The steering inbox had no pending messages, only a
+  handled directory.
+✻ Cooked for 14s · done 2:38 AM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent

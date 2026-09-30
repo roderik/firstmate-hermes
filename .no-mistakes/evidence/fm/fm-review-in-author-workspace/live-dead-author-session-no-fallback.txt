@@ -1,0 +1,15 @@
+# author meta window=goneses:fm-author-1 (session does not exist; worktree still exists), then:
+$ FM_HOME=<lab> bin/fm-spawn.sh review-3 --review-of author-1 --harness claude
+can't find session: goneses
+can't find session: goneses
+EXIT=1
+(no "notice: ... falls back to a pooled review worktree" line; no pool fallback attempted)
+
+# bash -x excerpt: liveness probe returns success for a nonexistent session
+994:+ REVIEW_FALLBACK_REASON=
+998:+ fm_backend_target_exists tmux goneses:fm-author-1
+1001:+ tmux display-message -p -t goneses:fm-author-1 '#{pane_id}'
+$ tmux display-message -p -t goneses:fm-author-1 "#{pane_id}"; echo rc=$?
+
+rc=0
+tmux 3.4

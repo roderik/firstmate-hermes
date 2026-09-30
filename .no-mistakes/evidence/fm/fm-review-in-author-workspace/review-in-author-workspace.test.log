@@ -1,0 +1,5 @@
+ok - a claude review spawn loads its hooks from state/ and leaves the author's worktree wiring byte-identical
+ok - review teardown leaves the author's worktree wiring byte-identical and retires the reviewer's settings
+ok - opencode, grok, and kimi reviews are refused before touching the author's worktree
+ok - a review whose recorded author endpoint is dead falls back to a pooled worktree with a logged reason
+all fm-review-in-author-workspace tests passed

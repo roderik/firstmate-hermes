@@ -1,0 +1,23 @@
+# author meta window=goneses:fm-author-1 (tmux session does not exist; author worktree still exists), then:
+$ FM_HOME=<lab> bin/fm-spawn.sh review-3 --review-of author-1 --harness claude
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+notice: review review-3 of author-1 falls back to a pooled review worktree in <lab>/proj/demo: author endpoint goneses:fm-author-1 on tmux is gone
+spawned review-3 harness=claude kind=scout window=fmsess:fm-review-3 worktree=/home/roderik/.treehouse/demo-ae107b/1/demo
+EXIT=0
+
+== windows after spawn
+fmsess:fm-review-3 cwd=/home/roderik/.treehouse/demo-ae107b/1/demo cmd=claude
+fmsess:driver cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT cmd=bash
+
+== review-3.meta
+window=fmsess:fm-review-3
+endpoint_task_id=review-3
+worktree=/home/roderik/.treehouse/demo-ae107b/1/demo
+project=<lab>/proj/demo
+harness=claude
+kind=scout
+tasktmp=/tmp/fm-review-3
+model=default
+effort=default
+busy_gen=g1790728817.3119922.23342
+spawn_gen=s1790728817.3117662.466

@@ -1,0 +1,17 @@
+# live author window fmsess:fm-author-1, then:
+$ FM_HOME=<lab> bin/fm-spawn.sh review-4 --review-of author-1 --harness opencode
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+error: harness 'opencode' cannot review in author task author-1's workspace: its turn-end wiring lives inside the worktree and would overwrite the author's; pick another harness for this review
+EXIT=1
+
+== windows after spawn
+fmsess:fm-author-1 cwd=<lab>/wt/author cmd=bash
+fmsess:driver cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT cmd=bash
+
+== author worktree listing diff (before vs after; empty = untouched)
+(no difference)
+
+== .opencode dir in author worktree
+ls: cannot access '<lab>/wt/author/.opencode': No such file or directory
+== review-4.meta
+ls: cannot access '<lab>/state/review-4.meta': No such file or directory

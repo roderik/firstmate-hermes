@@ -1,0 +1,34 @@
+$ FM_HOME=<lab> bin/fm-teardown.sh author-1        # while review-1 is open
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+REFUSED: author task author-1 still has review task review-1 open; tear down the reviewer tab first, then retry the author teardown
+EXIT=1
+
+$ FM_HOME=<lab> bin/fm-teardown.sh review-1      # (first attempt hit the normal captain-call gate; inventoried with fm-captain-hold.sh complete review-1 --none)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+fm-captain-hold: origin review-1 has no completed captain-call inventory
+REFUSED: scout task review-1 has not passed the captain-call completion gate.
+Inventory its report and any visual review through bin/fm-captain-hold.sh before teardown.
+EXIT=1
+
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+teardown review-1 complete (window fmsess:fm-review-1, worktree <lab>/wt/author)
+Backlog: review-1 just finished (this home keeps no markdown backlog at <lab>/data/backlog.md). Update <lab>/data/backlog.md - move review-1 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+EXIT=0
+
+== windows after review teardown (author window intact)
+fmsess:fm-author-1 cwd=<lab>/wt/author cmd=bash
+fmsess:driver cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT cmd=bash
+
+author worktree still present:
+<lab>/wt/author
+<lab>/proj/demo  bd383b1 [main]
+<lab>/wt/author  43d3a06 [fm/author-1]
+
+author settings.local.json sha256 after teardown / before spawn:
+b4d49acf5f95e90c7df86a1d6545c5b40d9ff7bab81271bff990f19213c35623  <lab>/wt/author/.claude/settings.local.json
+b4d49acf5f95e90c7df86a1d6545c5b40d9ff7bab81271bff990f19213c35623  <lab>/wt/author/.claude/settings.local.json
+
+state/review-1.claude-settings.json after teardown:
+ls: cannot access '<lab>/state/review-1.claude-settings.json': No such file or directory
+author meta still present:
+<lab>/state/author-1.meta

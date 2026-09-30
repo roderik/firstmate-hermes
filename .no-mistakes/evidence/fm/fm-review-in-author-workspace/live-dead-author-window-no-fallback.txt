@@ -1,0 +1,15 @@
+# author window fmsess:fm-author-1 killed (session fmsess still alive), then:
+$ FM_HOME=<lab> bin/fm-spawn.sh review-2 --review-of author-1 --harness claude
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+spawned review-2 harness=claude kind=scout window=fmsess:fm-review-2 worktree=<lab>/wt/author
+EXIT=0
+(expected: "notice: review review-2 of author-1 falls back to a pooled review worktree ...: author endpoint fmsess:fm-author-1 on tmux is gone")
+
+# root cause: the liveness probe used (fm_backend_target_exists tmux) on tmux 3.4:
+$ tmux display-message -p -t fmsess:fm-author-1 "#{pane_id} #{window_name}"; echo rc=$?
+%1 driver
+rc=0
+$ tmux display-message -p -t fmsess:fm-nonexistent "#{pane_id} #{window_name}"; echo rc=$?
+%1 driver
+rc=0
+tmux 3.4

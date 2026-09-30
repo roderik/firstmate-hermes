@@ -1,0 +1,12 @@
+$ FM_HOME=<lab> bin/fm-spawn.sh review-1 --review-of author-1 --harness claude   (real tmux, lab socket fm-lab)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home <lab>
+error: window fmsess:fm-review-1 already exists
+EXIT=1
+
+$ tmux -L fm-lab list-windows -a  (after the failed spawn)
+fmsess:fm-author-1 @0 cwd=<lab>/wt/author
+fmsess:driver @1 cwd=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3QTM0PJX28QWQC59JV9ETTT
+fmsess:fm-review-1 @2 cwd=<lab>/proj/demo
+
+$ ls state/
+author-1.meta
