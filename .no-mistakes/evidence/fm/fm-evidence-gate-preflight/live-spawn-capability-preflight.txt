@@ -1,0 +1,19 @@
+### Scenario B1: brief declares "Proof surfaces: seed", project has no .firstmate/seed-check -> dispatch refused
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.85J6mo
+capability: seed unavailable - project declares no .firstmate/seed-check
+error: required host capability 'seed' is unavailable; refusing dispatch before endpoint creation
+state files: none
+worktrees: 1
+
+### Scenario B2: seed-check hangs -> bounded by FM_CAPABILITY_CHECK_TIMEOUT=3, dispatch refused
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.85J6mo
+capability: seed unavailable - .firstmate/seed-check failed
+error: required host capability 'seed' is unavailable; refusing dispatch before endpoint creation
+elapsed=4s
+state files: none
+
+### Scenario B3: unknown surface "gpu" -> refused
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.85J6mo
+capability: seed ready
+error: unknown proof surface 'gpu' in /tmp/fm-lab.85J6mo/data/cap-scout/brief.md
+state files: none

@@ -1,0 +1,13 @@
+### Scenario A3: committed branch whose declared ready check fails -> refused
+ready-check: running /tmp/fm-lab-work.Itmqgh/p3/.firstmate/ready-check
+ready-check: failed (exit 4)
+error: task lm-fail project ready check did not pass; refusing to merge
+default branch unchanged: yes
+
+### Scenario A4: project with no declared ready check, untracked scratch in worktree -> lands
+merged fm/lm-none into local master (94d32cd -> b0bf7ff) in /tmp/fm-lab-work.Itmqgh/p4
+main==tip: yes
+
+### Scenario A5: package.json pr:ready-check edited on worker branch -> refused
+ready-check: pr:ready-check on the worker branch differs from the project declaration
+error: task lm-pkg project ready check did not pass; refusing to merge

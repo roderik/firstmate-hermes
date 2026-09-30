@@ -1,0 +1,4 @@
+ok - fm-pr-merge pins the GitLab ready check to the merge request head, runs it outside the control lock, and refuses on failure
+ok - fm-pr-merge binds a GitHub merge to the head its declared ready check covered, even when the forge head was unreadable
+ok - fm-merge-local: the ready check gates the committed ship branch tip, not worktree files
+ok - fm-merge-local: a project without a ready check lands despite untracked worktree files

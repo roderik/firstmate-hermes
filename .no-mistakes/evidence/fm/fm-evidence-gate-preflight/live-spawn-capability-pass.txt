@@ -1,0 +1,8 @@
+### Scenario B4: seed-check exits 0 -> preflight passes and dispatch proceeds to endpoint creation
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.85J6mo
+capability: seed ready
+spawned cap-scout harness=claude kind=scout window=firstmate:fm-cap-scout worktree=/home/roderik/.treehouse/capproj-baaa31/1/capproj
+rc(pipe)=0
+state files: cap-scout.busy-gen cap-scout.busy-state cap-scout.git-hooks cap-scout.inbox cap-scout.meta 
+error connecting to /tmp/fm-lab.85J6mo/tmux/tmux-1000/fm-lab (No such file or directory)
+firstmate: 2 windows (created Wed Sep 30 04:43:48 2026)

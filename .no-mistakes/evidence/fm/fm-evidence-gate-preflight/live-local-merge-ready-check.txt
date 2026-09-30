@@ -1,0 +1,21 @@
+### Scenario A1: uncommitted ready.ok -> local merge refused
+$ fm-merge-local.sh lm-ready
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ready-check: worktree has uncommitted or untracked changes; commit them before handoff
+error: task lm-ready project ready check did not pass; refusing to merge
+exit=1
+main moved? 7226dc8f1f871d39beaec706f332e384315589ec (base)
+
+### Scenario A2: commit ready.ok -> local merge lands checked tip
+$ fm-merge-local.sh lm-ready
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+ready-check: running /tmp/fm-lab-work.Itmqgh/proj/.firstmate/ready-check
+merged fm/lm-ready into local master (7226dc8 -> 9e60e36) in /tmp/fm-lab-work.Itmqgh/proj
+exit=0
+main=9e60e368aae1deb4d1f7bd87a63a27bfb0fa6439 branch tip=9e60e368aae1deb4d1f7bd87a63a27bfb0fa6439

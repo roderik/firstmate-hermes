@@ -1,0 +1,4 @@
+ready-check: running /tmp/fm-ready-check.JcRWgw/project/.firstmate/ready-check
+ready-check: running npm run pr:ready-check
+ok - project-declared ready checks gate pass, failure, timeout, worker edits, dirty worktrees, head mismatches, package scripts, and legacy projects
+ok - capability preflight probes pool, ci, seed, and attachments inside the project and refuses absent declarations and hung probes
