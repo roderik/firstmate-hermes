@@ -178,6 +178,47 @@ SH
   pass "registered custom check output is queued before cadence suppression"
 }
 
+test_watcher_suppresses_terminal_check_notice_before_wake() {
+  local dir state fakebin out drain_out terminal_check live_check
+  dir=$(make_case check-terminal)
+  state="$dir/state"
+  fakebin="$dir/fakebin"
+  out="$dir/watch.out"
+  drain_out="$dir/drain.out"
+  terminal_check="$state/a-terminal.check.sh"
+  live_check="$state/b-live.check.sh"
+  printf 'done: PR merged\n' > "$state/a-terminal.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
+    > "$state/a-terminal.pr-poll-merge-notified"
+  printf 'working: fix nightly\n' > "$state/b-live.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 8 \
+    > "$state/b-live.pr-poll-merge-notified"
+  for check_file in "$terminal_check" "$live_check"; do
+    cat > "$check_file" <<'SH'
+#!/usr/bin/env bash
+printf 'scheduled workflow failed\n'
+SH
+    chmod 0700 "$check_file"
+  done
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-check-register.sh" a-terminal >/dev/null \
+    || fail "could not register terminal custom check"
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-check-register.sh" b-live >/dev/null \
+    || fail "could not register live custom check"
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=0 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  wait_for_exit "$!" 40 || fail "watcher did not exit for the live check output"
+  grep -F "check: $live_check: scheduled workflow failed" "$out" >/dev/null \
+    || fail "watcher did not wake for a notice whose task is not terminal"
+  if grep -F "$terminal_check" "$out" >/dev/null; then
+    fail "watcher woke with a terminal notice for a merged, closed task"
+  fi
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after terminal check failed"
+  grep -F "$live_check" "$drain_out" >/dev/null || fail "live check notice was not queued"
+  if grep -F "$terminal_check" "$drain_out" >/dev/null; then
+    fail "terminal check notice was queued for a merged, closed task"
+  fi
+  pass "watcher suppresses terminal check notices before queueing or waking"
+}
+
 test_atomic_double_drain() {
   local dir state out1 out2 count1 count2 sequence generation leftover
   dir=$(make_case double-drain)
@@ -225,6 +266,70 @@ test_drain_dedupes_obvious_duplicates() {
   grep "$(printf '\theartbeat\theartbeat\theartbeat')" "$out" >/dev/null || fail "heartbeat was not preserved"
   grep "$(printf '\tsignal\ttask.status\t')" "$out" | grep -F "$state/task.turn-ended" >/dev/null || fail "latest signal payload was not preserved"
   pass "drain collapses obvious duplicate heartbeat and signal records"
+}
+
+test_drain_suppresses_terminal_bot_notice_for_merged_task() {
+  local dir state out err sequence generation
+  dir=$(make_case terminal-bot-notice)
+  state="$dir/state"
+  out="$dir/drain.out"
+  err="$dir/drain.err"
+  printf 'done: PR merged\n' > "$state/task-terminal.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
+    > "$state/task-terminal.pr-poll-merge-notified"
+  append_wake "$state" check "$state/task-terminal.check.sh" \
+    "check: $state/task-terminal.check.sh: bot approval for already merged PR" \
+    || fail "terminal bot notice append failed"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "terminal bot notice drain failed"
+  grep -F 'WAKE TERMINAL NOTICES SUPPRESSED: 1' "$out" >/dev/null \
+    || fail "merged terminal notice did not produce one suppression summary"
+  if grep -F 'bot approval for already merged PR' "$out" >/dev/null; then
+    fail "merged terminal notice payload was presented after suppression"
+  fi
+  sequence=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' "$err")
+  generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
+  [ -n "$sequence" ] && [ -n "$generation" ] || fail "suppressed terminal notice omitted its acknowledgement boundary"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$sequence" --recovery-generation "$generation" \
+    || fail "suppressed terminal notice acknowledgement failed"
+  [ ! -s "$state/.wake-queue" ] || fail "suppressed terminal notice remained queued after acknowledgement"
+  pass "merged terminal bot notices collapse to one summary and remain acknowledgeable"
+}
+
+test_drain_keeps_terminal_notice_loud_without_proof() {
+  local dir state out
+  dir=$(make_case terminal-notice-unproven)
+  state="$dir/state"
+  out="$dir/drain.out"
+  printf 'done: PR merged\nworking: fix nightly\n' > "$state/task-resumed.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 7 \
+    > "$state/task-resumed.pr-poll-merge-notified"
+  append_wake "$state" check "$state/task-resumed.check.sh" \
+    "check: $state/task-resumed.check.sh: scheduled workflow failed" \
+    || fail "resumed task notice append failed"
+  printf 'done: PR merged\n' > "$state/task-badmark.status"
+  printf 'stale leftover\n' > "$state/task-badmark.pr-poll-merge-notified"
+  append_wake "$state" check "$state/task-badmark.check.sh" \
+    "check: $state/task-badmark.check.sh: scheduled workflow failed" \
+    || fail "malformed marker notice append failed"
+  printf 'done: PR merged\n' > "$state/ci-bot-approval.status"
+  printf '%s\n' fm-pr-poll-merge-notified-v1 github github.com o/r 9 \
+    > "$state/ci-bot-approval.pr-poll-merge-notified"
+  append_wake "$state" check "$state/ci-bot-approval.check.sh" \
+    "check: $state/ci-bot-approval.check.sh: deploy to prod failed" \
+    || fail "path-matching notice append failed"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2>/dev/null || fail "unproven terminal notice drain failed"
+  grep -F 'task-resumed.check.sh: scheduled workflow failed' "$out" >/dev/null \
+    || fail "a notice for a task resumed after done was suppressed"
+  grep -F 'task-badmark.check.sh: scheduled workflow failed' "$out" >/dev/null \
+    || fail "a malformed merge marker suppressed a notice"
+  grep -F 'ci-bot-approval.check.sh: deploy to prod failed' "$out" >/dev/null \
+    || fail "a check path matching the terminal pattern suppressed an unrelated notice"
+  if grep -F 'WAKE TERMINAL NOTICES SUPPRESSED' "$out" >/dev/null; then
+    fail "unproven terminal notices were counted as suppressed"
+  fi
+  pass "terminal notices stay loud when current status is nonterminal or the merge receipt is invalid"
 }
 
 # Run one watcher leg of the foreign-stall case at fake time <now>. Each leg
@@ -3397,8 +3502,11 @@ test_signal_catchup_without_running_watcher
 test_stale_enqueue_before_suppressor
 test_not_working_stale_enqueue_before_suppressor
 test_check_output_is_queued
+test_watcher_suppresses_terminal_check_notice_before_wake
 test_atomic_double_drain
 test_drain_dedupes_obvious_duplicates
+test_drain_suppresses_terminal_bot_notice_for_merged_task
+test_drain_keeps_terminal_notice_loud_without_proof
 test_drain_asserts_watcher_liveness
 test_structural_signal_enrichment_preserves_raw_rows
 test_enrichment_preserves_all_unread_lines_and_status_file_failures

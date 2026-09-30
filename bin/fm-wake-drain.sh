@@ -48,6 +48,9 @@ ACK_REMOVED=0
 PRESENTED_MAX=0
 ACK_FINGERPRINTS=
 ACK_NOTICE_FINGERPRINTS=
+OPEN_PAGE_CURSOR=
+SUPPRESSED_TERMINAL_SEQS=
+SUPPRESSED_TERMINAL_COUNT=0
 PRESENTATION_LOCK_TIMEOUT=${FM_STATUS_PRESENTATION_LOCK_TIMEOUT:-10}
 BRANCH_OUTCOMES_RC=0
 case "$PRESENTATION_LOCK_TIMEOUT" in ''|*[!0-9]*|0) PRESENTATION_LOCK_TIMEOUT=10 ;; esac
@@ -253,8 +256,8 @@ assert_watcher_liveness() {
 # The helper ignores non-presentation and legacy keys, so this is a narrow
 # receipt path rather than a second interpretation of general check wakes.
 inactive_outcome_fingerprints() { # <sequence> <key-prefix> [<rows-file>]
-  local cutoff=$1 prefix=$2 rows=${3:-} epoch seq kind key payload
-  while IFS=$(printf '\t') read -r epoch seq kind key payload; do
+  local cutoff=$1 prefix=$2 rows=${3:-} seq kind key payload
+  while IFS=$(printf '\t') read -r _epoch seq kind key payload; do
     [ "$kind" = check ] || continue
     case "$seq" in ''|*[!0-9]*) continue ;; esac
     [ "$seq" -le "$cutoff" ] || continue
@@ -467,50 +470,96 @@ EOF
 # common case.
 print_open_decisions_section() {
   local snapshot=${1:-} open task key verb note line item_bytes=220 global_bytes=4000
-  local output='' used=0 shown=0 omitted=0 bytes
+  local output='' used=0 shown=0 total=0 bytes page_file page_data page_start
+  local saved_task='' saved_key=''
+  local -a lines=() idents=()
 
+  OPEN_PAGE_CURSOR=
   if [ -n "$snapshot" ]; then
     open=$(scan_open_decisions_snapshot "$STATE" "$snapshot") || return 1
   else
     open=$(scan_open_decisions_incremental "$STATE") || return 1
   fi
   [ -n "$open" ] || return 0
+  open=$(printf '%s\n' "$open" | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2) || return 1
+
+  # OPEN DECISIONS is a fleet-wide current set rather than an append-only
+  # stream. Keep a tiny durable cursor naming the last task/key shown so a large
+  # fleet is walked over successive drains in task/key order, even while other
+  # decisions open or close between drains.
+  page_file="$STATE/.open-decisions-page"
+  if [ -f "$page_file" ] && [ ! -L "$page_file" ] \
+    && page_data=$(LC_ALL=C command cat "$page_file" 2>/dev/null); then
+    while IFS=$(printf '\t') read -r version task key extra; do
+      [ "$version" = v2 ] && [ -n "$task" ] && [ -n "$key" ] && [ -z "$extra" ] || continue
+      saved_task=$task
+      saved_key=$key
+    done <<EOF
+$page_data
+EOF
+  fi
+  page_start=0
+  if [ -n "$saved_task" ]; then
+    page_start=$(printf '%s\n' "$open" | LC_ALL=C awk -F '\t' -v t="$saved_task" -v k="$saved_key" '
+      $1 == "" { next }
+      { n++ }
+      ($1 "") > (t "") || (($1 "") == (t "") && ($2 "") > (k "")) { print n - 1; found=1; exit }
+      END { if (!found) print 0 }
+    ') || return 1
+  fi
 
   while IFS=$(printf '\t') read -r task key verb note; do
     [ -n "$task" ] || continue
+    idents+=("$task"$'\t'"$key")
     line="$task"
     [ "$key" = default ] || line="$line [key=$key]"
     line="$line $verb: $note"
-    # The shared cut counts the item's own characters; the trailing newline this
-    # section's global budget also pays for is this caller's, so the per-item
-    # allowance passed down is one short of the cap.
     fm_cap_line_var "$line" $((item_bytes - 1))
     line=$FM_LINE_CAP_LINE
-    bytes=$(( ${#line} + 1 ))
-    if [ $((used + bytes)) -gt "$global_bytes" ]; then
-      omitted=$((omitted + 1))
-      continue
-    fi
-    output="$output$line
-"
-    used=$((used + bytes))
-    shown=$((shown + 1))
+    lines+=("$line")
   done <<EOF
 $open
 EOF
+  total=${#lines[@]}
+  [ "$total" -gt 0 ] || return 0
+  [ "$page_start" -lt "$total" ] || page_start=0
 
-  [ "$shown" -gt 0 ] || [ "$omitted" -gt 0 ] || return 0
-  printf 'OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):\n' || return 1
-  printf '%s' "$output" || return 1
-  if [ "$omitted" -gt 0 ]; then
-    printf 'OPEN DECISIONS: %d more omitted (byte cap)\n' "$omitted" || return 1
+  # Select one contiguous page. The next page is committed only after the
+  # prepared presentation reaches stdout, so an interrupted drain retries the
+  # same decisions and never loses a page.
+  local i
+  for ((i=page_start; i<total; i++)); do
+    line=${lines[i]}
+    bytes=$(( ${#line} + 1 ))
+    if [ $((used + bytes)) -gt "$global_bytes" ]; then break; fi
+    output="${output}${line}"$'\n'
+    used=$((used + bytes))
+    shown=$((shown + 1))
+  done
+  [ "$shown" -gt 0 ] || return 1
+  if [ $((page_start + shown)) -lt "$total" ]; then
+    OPEN_PAGE_CURSOR=${idents[page_start + shown - 1]}
   fi
-  # Answerer-closes hint, printed at exactly the moment an answer gets written:
-  # the send that answers a listed decision also closes it, so closure never
-  # depends on the busy worker writing a matching resolved line (contract:
-  # bin/fm-send.sh header).
+  printf 'OPEN DECISIONS (still open, folded from the durable status logs - page %d-%d of %d):\n' \
+    "$((page_start + 1))" "$((page_start + shown))" "$total" || return 1
+  printf '%s' "$output" || return 1
+  if [ -n "$OPEN_PAGE_CURSOR" ]; then
+    printf 'OPEN DECISIONS: page continues on the next drain.\n' || return 1
+  fi
   printf "OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'\n" || return 1
 }
+
+commit_open_decisions_page() {
+  local page_file="$STATE/.open-decisions-page" tmp
+  if [ -z "${OPEN_PAGE_CURSOR:-}" ]; then
+    rm -f -- "$page_file" 2>/dev/null || true
+    return 0
+  fi
+  tmp=$(mktemp "$STATE/.open-decisions-page.tmp.XXXXXX") || return 1
+  printf 'v2\t%s\n' "$OPEN_PAGE_CURSOR" > "$tmp" || { rm -f "$tmp"; return 1; }
+  mv -f -- "$tmp" "$page_file"
+}
+
 
 # Print the RECORD DIVERGENCE section: every captain call whose two records
 # contradict each other - the status log says a key was resolved outright while
@@ -771,6 +820,10 @@ print_status_sections() {
     return 1
   fi
   if ! status_commit_presentation_snapshot "$STATE" "$acknowledged"; then
+    rm -f -- "$prepared"
+    return 1
+  fi
+  if ! commit_open_decisions_page; then
     rm -f -- "$prepared"
     return 1
   fi
@@ -1052,14 +1105,42 @@ awk -F '\t' -v seqs="$ACTOR_ROWS_FILE" '
 RAW_ROWS=$(fm_wake_print_deduped "$DRAIN_VIEW_TMP") || exit "$?"
 rm -f -- "$DRAIN_VIEW_TMP" || exit 1
 DRAIN_VIEW_TMP=
+# Stale terminal notices (bin/fm-wake-lib.sh fm_wake_terminal_notice_suppressed)
+# stay in the durable queue and are consumed with this wake, but their repeated
+# payload is omitted from the worker-facing turn.
+SUPPRESSED_TERMINAL_SEQS=
+SUPPRESSED_TERMINAL_COUNT=0
+TERMINAL_NOTICE_CANDIDATES=$(printf '%s\n' "$RAW_ROWS" | awk -F '\t' -v ere="$FM_WAKE_TERMINAL_NOTICE_ERE" '
+  $3 == "check" && $4 ~ /\.check\.sh$/ {
+    prefix = "check: " $4 ": "
+    if (substr($5, 1, length(prefix)) != prefix) next
+    if (tolower(substr($5, length(prefix) + 1)) ~ ere) print
+  }
+') || exit 1
+while IFS=$(printf '\t') read -r _epoch seq kind key payload; do
+  [ -n "$seq" ] || continue
+  fm_wake_terminal_notice_suppressed "$key" "$payload" || continue
+  SUPPRESSED_TERMINAL_SEQS="${SUPPRESSED_TERMINAL_SEQS}${seq} "
+  SUPPRESSED_TERMINAL_COUNT=$((SUPPRESSED_TERMINAL_COUNT + 1))
+done <<EOF
+$TERMINAL_NOTICE_CANDIDATES
+EOF
 ACK_THROUGH=$(printf '%s\n' "$RAW_ROWS" | awk -F '\t' '$2 ~ /^[0-9]+$/ && $2 > max { max=$2 } END { print max + 0 }') || exit 1
 case "${FM_WAKE_DRAIN_TEST_DELAY_BEFORE_COMMIT:-0}" in
   0) ;;
   ''|*[!0-9]*) ;;
   *) sleep "$FM_WAKE_DRAIN_TEST_DELAY_BEFORE_COMMIT" ;;
 esac
-if [ -n "$RAW_ROWS" ]; then
-  printf '%s\n' "$RAW_ROWS" || exit "$?"
+if [ "$SUPPRESSED_TERMINAL_COUNT" -gt 0 ]; then
+  printf 'WAKE TERMINAL NOTICES SUPPRESSED: %s repeated terminal notice(s) for merged, closed task(s).\n' "$SUPPRESSED_TERMINAL_COUNT"
+fi
+if [ "$SUPPRESSED_TERMINAL_COUNT" -eq 0 ]; then
+  [ -z "$RAW_ROWS" ] || printf '%s\n' "$RAW_ROWS" || exit "$?"
+else
+  printf '%s\n' "$RAW_ROWS" | awk -F '\t' -v seqs="$SUPPRESSED_TERMINAL_SEQS" '
+    BEGIN { n = split(seqs, s, " "); for (i = 1; i <= n; i++) skip[s[i]] = 1 }
+    NF && !($2 in skip)
+  ' || exit "$?"
 fi
 fm_recovery_marker_snapshot "$RECOVERY_MARKER" || exit 1
 RECOVERY_MARKER_TOKEN=$FM_RECOVERY_MARKER_TOKEN
