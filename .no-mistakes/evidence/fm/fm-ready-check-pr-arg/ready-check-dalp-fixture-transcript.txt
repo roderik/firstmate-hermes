@@ -1,0 +1,45 @@
+### BEFORE (base 568fab3): fm-ready-check.sh <proj> <wt> <head>
+ready-check: running bun run pr:ready-check
+$ bun tools/check-pr-ready.ts
+usage: check-pr-ready <pr-number-or-branch>
+ready-check: failed (exit 2)
+exit=2
+
+### AFTER (c3e03b0): fm-ready-check.sh <proj> <wt> <head> 15402  (PR path)
+ready-check: running bun run pr:ready-check 15402
+$ bun tools/check-pr-ready.ts "15402"
+check-pr-ready: PR target=15402 ready
+ready-check: passed
+exit=0
+
+### AFTER: no PR arg -> branch fallback
+ready-check: running bun run pr:ready-check fm/dalp-15402
+$ bun tools/check-pr-ready.ts "fm/dalp-15402"
+check-pr-ready: PR target=fm/dalp-15402 ready
+ready-check: passed
+exit=0
+
+### AFTER via fm_dod_ready_check lib (fm-pr-check.sh call shape)
+gate=pass
+
+### AFTER via fm_dod_ready_check, empty head + PR number
+gate=pass
+
+### ADVERSARIAL: wrong head still refused even with PR number
+ready-check: worktree HEAD is not the handed-off head deadbeef; fetch and check it out before handoff
+exit=1
+
+### ADVERSARIAL: dirty worktree still refused
+ready-check: worktree has uncommitted or untracked changes; commit them before handoff
+exit=1
+
+### ADVERSARIAL: 5 args -> usage exit
+exit=2
+
+### ADVERSARIAL: failing project check still fails (PR 999 rejected)
+ready-check: running bun run pr:ready-check 999
+$ bun tools/check-pr-ready.ts "999"
+not ready
+error: script "pr:ready-check" exited with code 1
+ready-check: failed (exit 1)
+exit=1
