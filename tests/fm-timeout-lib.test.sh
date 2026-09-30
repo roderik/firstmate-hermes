@@ -64,6 +64,62 @@ test_passes_the_command_status_and_output_through() {
   pass "fm_exec_timed passes a command's status and output through unchanged"
 }
 
+# Bash 3.2 has no BASHPID, so an unset variable must still let the watchdog
+# start and enforce its bound.
+test_unset_bashpid_still_bounds_the_command() {
+  local rc=0 started elapsed
+  started=$SECONDS
+  (
+    unset BASHPID
+    exec_timed "$PERL_ONLY" 1 1 bash -c 'exec sleep 300'
+  ) || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 124 ] || fail "fm_exec_timed failed with BASHPID unset (rc=$rc)"
+  [ "$elapsed" -ge 1 ] || fail "the BASHPID-unset bound fired too early (${elapsed}s)"
+  [ "$elapsed" -lt 10 ] || fail "the BASHPID-unset command outlived its bound (${elapsed}s)"
+  pass "fm_exec_timed bounds a command when BASHPID is unset"
+}
+
+# When BASHPID is unavailable, a nested caller must still be identified by
+# its own process so the watchdog notices when its outer owner exits.
+test_unset_bashpid_preserves_nested_owner_death() {
+  local dir rc=0 started elapsed child
+  dir="$TMP_ROOT/nested-owner"
+  mkdir -p "$dir"
+  started=$SECONDS
+  # An intermediate subshell outlives the owner, so the watchdog's own parent
+  # never changes and only the owner PID can reveal the owner's death.
+  # The owner waits for the bounded child to record its PID before exiting,
+  # so the watchdog cannot stop the child before the test can observe it.
+  PATH=$PERL_ONLY bash -c '
+    unset BASHPID
+    (
+      (
+        . "$1/bin/fm-timeout-lib.sh"
+        fm_exec_timed 60 1 bash -c "$4" _ "$2"
+      )
+      true
+    ) > "$3/out" 2>&1 &
+    i=0
+    while [ ! -s "$2" ] && [ "$i" -lt 500 ]; do
+      i=$((i + 1))
+      sleep 0.02
+    done
+    exit 0
+  ' _ "$ROOT" "$dir/child" "$dir" 'echo $$ > "$1"; exec sleep 300' || rc=$?
+  [ "$rc" -eq 0 ] || fail "nested BASHPID-unset owner probe failed (rc=$rc)"
+  wait_for_file "$dir/child"
+  child=$(cat "$dir/child")
+  case "$child" in
+    '' | *[!0-9]*) fail "the bounded child recorded no PID ($child)" ;;
+  esac
+  sleep 1
+  elapsed=$((SECONDS - started))
+  ! kill -0 "$child" 2>/dev/null || fail "nested BASHPID-unset watchdog left the bounded child alive"
+  [ "$elapsed" -lt 10 ] || fail "nested BASHPID-unset watchdog did not stop after owner death (${elapsed}s)"
+  pass "fm_exec_timed preserves nested owner death detection when BASHPID is unset"
+}
+
 # A command that honors TERM ends at the bound, long before the grace would
 # have forced it, and is gone afterwards.
 test_term_ends_a_cooperative_command_at_the_bound() {
@@ -328,6 +384,8 @@ test_run_timed_passes_a_natural_exit_through_a_fired_bound() {
 }
 
 test_passes_the_command_status_and_output_through
+test_unset_bashpid_still_bounds_the_command
+test_unset_bashpid_preserves_nested_owner_death
 test_run_timed_reports_the_bound_when_the_wrapper_records_a_signal_death
 test_run_timed_passes_a_natural_exit_through_a_fired_bound
 test_term_ends_a_cooperative_command_at_the_bound
