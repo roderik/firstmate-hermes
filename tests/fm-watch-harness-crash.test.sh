@@ -351,8 +351,9 @@ SH
     || fail "the watcher stopped instead of recovering the crashed workers: $(cat "$dir/watch.out" "$dir/watch.err")"
   grep -Fx SAME-POLL "$dir/control.log" >/dev/null \
     && fail "two relaunches ran in one poll: $(cat "$dir/control.log")"
-  grep -Fx a "$dir/control.log" >/dev/null && grep -Fx b "$dir/control.log" >/dev/null \
-    || fail "a crashed worker deferred to a later poll was never relaunched: $(cat "$dir/control.log")"
+  if ! grep -Fx a "$dir/control.log" >/dev/null || ! grep -Fx b "$dir/control.log" >/dev/null; then
+    fail "a crashed worker deferred to a later poll was never relaunched: $(cat "$dir/control.log")"
+  fi
   [ ! -s "$state/.wake-queue" ] || fail "a deferred crashed worker woke firstmate: $(cat "$state/.wake-queue")"
   pass "one poll runs at most one harness-crash relaunch and the next crashed worker waits for a later poll"
 }
