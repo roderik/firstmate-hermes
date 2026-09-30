@@ -59,22 +59,19 @@ fi
 MERGE_EXPECTED_SPAWN_GEN=$FM_BACKLOG_META_SPAWN_GEN
 # The project's declared ready check is the local-only handoff gate. It runs
 # before the control lock so a long check cannot hold the task's lock.
-# It checks the committed branch tip the merge lands, so the worktree must be
-# clean and at that tip.
+# It checks the committed branch tip the merge lands, and the merge is bound to
+# that tip only when a declared check passed on it.
 READY_WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
 READY_PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
 READY_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
 READY_SHA=
 if [ "$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)" = local-only ] \
   && [ -n "$READY_WT" ] && [ -d "$READY_WT" ] && [ -n "$READY_PROJECT" ] && [ -d "$READY_PROJECT" ]; then
-  READY_SHA=$(git -C "$READY_PROJECT" rev-parse --verify --quiet "refs/heads/${READY_BRANCH:-fm/$ID}^{commit}" || true)
-  if [ -z "$READY_SHA" ] || [ "$(git -C "$READY_WT" rev-parse --verify --quiet 'HEAD^{commit}' || true)" != "$READY_SHA" ] \
-    || [ -n "$(git -C "$READY_WT" status --porcelain 2>/dev/null | head -1)" ]; then
-    echo "error: task $ID worktree is not a clean checkout of its ship branch tip; refusing to run the ready check or merge" >&2
-    exit 1
-  fi
-  "$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" >/dev/null \
+  READY_TIP=$(git -C "$READY_PROJECT" rev-parse --verify --quiet "refs/heads/${READY_BRANCH:-fm/$ID}^{commit}" || true)
+  [ -n "$READY_TIP" ] || { echo "error: task $ID ship branch has no commit; refusing to run the ready check or merge" >&2; exit 1; }
+  READY_OUT=$("$SCRIPT_DIR/fm-ready-check.sh" "$READY_PROJECT" "$READY_WT" "$READY_TIP") \
     || { echo "error: task $ID project ready check did not pass; refusing to merge" >&2; exit 1; }
+  case "$READY_OUT" in *'ready-check: passed'*) READY_SHA=$READY_TIP ;; esac
 fi
 
 MERGE_CONTROL_LOCK=

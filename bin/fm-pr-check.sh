@@ -184,10 +184,19 @@ META_LOCK_HELD=1
 META_DEVICE=$(fm_pr_file_device "$META") || exit 1
 STATE_DEVICE=$(fm_pr_file_device "$STATE") || exit 1
 [ "$META_DEVICE" = "$STATE_DEVICE" ] || { echo "error: task metadata is unavailable" >&2; exit 1; }
+# A recorded pr_head lets bin/fm-pr-merge.sh skip the ready check, so the
+# merge-time re-record keeps the previous one rather than record a head that
+# the merge's own ready check (FM_PR_READY_BOUND) did not cover.
+KEEP_PR_HEAD=0
+if [ "${FM_PR_CHECK_MERGE:-}" = 1 ] && [ -n "${FM_PR_READY_BOUND:-}" ] && [ "$PR_HEAD" != "$FM_PR_READY_BOUND" ]; then
+  KEEP_PR_HEAD=1
+  PR_HEAD=
+fi
 META_TMP=$(mktemp "$STATE/.fm-pr-meta.XXXXXX") || exit 1
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    pr=*|pr_head=*) ;;
+    pr=*) ;;
+    pr_head=*) [ "$KEEP_PR_HEAD" = 1 ] || continue; printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
     *) printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
   esac
 done < "$META"

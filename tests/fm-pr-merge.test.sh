@@ -1830,7 +1830,19 @@ test_github_merge_refuses_head_moved_after_ready_check() {
     assert_grep "head moved to bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb after its ready check at $wt_head" \
       "$case_dir/stderr" "github-ready-head-moved ($pre_lock_head): the refusal did not name both heads"
     ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved ($pre_lock_head): gh was asked to merge an unchecked head"
+    assert_no_grep 'pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$case_dir/state/task-x1.meta" \
+      "github-ready-head-moved ($pre_lock_head): the refused merge recorded the unchecked head"
   done
+  printf 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n' > "$case_dir/github-head"
+  : > "$case_dir/gh.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "github-ready-head-moved (retry): the retried merge trusted a head no ready check covered"
+  assert_grep 'project ready check did not pass' "$case_dir/stderr" \
+    "github-ready-head-moved (retry): the retried merge did not re-run the ready check on the moved head"
+  ! grep -q '^pr merge' "$case_dir/gh.log" || fail "github-ready-head-moved (retry): gh was asked to merge an unchecked head"
   pass "fm-pr-merge binds a GitHub merge to the head its declared ready check covered, even when the forge head was unreadable"
 }
 

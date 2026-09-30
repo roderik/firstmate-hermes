@@ -524,6 +524,31 @@ test_local_merge_ready_checks_the_committed_branch_tip() {
   pass "fm-merge-local: the ready check gates the committed ship branch tip, not worktree files"
 }
 
+test_local_merge_without_ready_check_ignores_worktree_scratch() {
+  local home proj wt id main out
+  home="$TMP_ROOT/local-merge-no-ready/home"
+  proj="$TMP_ROOT/local-merge-no-ready/proj"
+  wt="$TMP_ROOT/local-merge-no-ready/wt"
+  id=local-merge-no-ready-e2
+  mkdir -p "$home/state" "$home/data" "$proj"
+  git -C "$proj" init -q || fail "could not initialize local-merge fixture"
+  git -C "$proj" config user.email test@example.com
+  git -C "$proj" config user.name test
+  git -C "$proj" commit -q --allow-empty -m base || fail "could not commit local-merge fixture"
+  main=$(git -C "$proj" branch --show-current)
+  git -C "$proj" worktree add -q -b "fm/$id" "$wt" || fail "could not create ship worktree fixture"
+  printf 'change\n' > "$wt/change"
+  git -C "$wt" add change || fail "could not stage ship change"
+  git -C "$wt" commit -qm change || fail "could not commit ship change"
+  printf 'scratch\n' > "$wt/scratch.log"
+  printf 'project=%s\nmode=local-only\nworktree=%s\n' "$proj" "$wt" > "$home/state/$id.meta"
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$MERGE_LOCAL" "$id" 2>&1) \
+    || fail "local merge refused a project that declares no ready check over an untracked scratch file: $out"
+  [ "$(git -C "$proj" rev-parse "$main")" = "$(git -C "$wt" rev-parse HEAD)" ] \
+    || fail "local merge did not land the branch tip"
+  pass "fm-merge-local: a project without a ready check lands despite untracked worktree files"
+}
+
 # A registered name may contain spaces, and the lookup must match the whole
 # name rather than only its first whitespace-delimited token (issue #1977).
 # The longer "foo bar" row is listed before the "foo" row so a leading-prefix
@@ -1659,6 +1684,7 @@ test_promotion_persists_the_selected_ship_branch
 test_promotion_branch_command_is_shell_safe
 test_local_merge_uses_the_recorded_ship_branch
 test_local_merge_ready_checks_the_committed_branch_tip
+test_local_merge_without_ready_check_ignores_worktree_scratch
 test_project_mode_matches_whole_multiword_names
 test_project_mode_maps_the_conditional_policy
 test_project_mode_binds_the_forge_orthogonally
