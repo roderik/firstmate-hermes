@@ -53,6 +53,20 @@ codex_status_crash_pane() {
     '  ? for shortcuts                                   61% context left'
 }
 
+# The exact envelope bytes observed on the fleet (2026-09-30) after the
+# Codex error marker, above an idle composer.
+codex_real_crash_pane() {
+  printf '%s\n' \
+    '• Ran bun run test' \
+    '  └ 412 pass' \
+    '' \
+    '■ {"error":{"code":"thinking_signature_invalid","message":"The encrypted content for item rs_05064b029ce6dc71016abc3b7f6bf087d2bd700d6f445e2129 could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error"}}' \
+    '' \
+    '› Ask Codex to do anything' \
+    '' \
+    '  ? for shortcuts                                   61% context left'
+}
+
 # A fake bin/fm-control.sh: records its arguments, and on success rewrites the
 # pane the way a fresh agent would, so the next poll no longer shows the error.
 # The success cases read the crew as provably working, as a fresh agent busy on
@@ -179,7 +193,7 @@ seed_attempts() {  # <state> <count> <age-secs>
 
 test_codex_crash_is_relaunched_silently_with_a_continue_note() {
   local dir state fn
-  for fn in codex_crash_pane codex_status_crash_pane; do
+  for fn in codex_crash_pane codex_status_crash_pane codex_real_crash_pane; do
     dir=$(crash_fixture "relaunch-$fn" codex "$fn"); state="$dir/state"
     crash_round "$dir" absorb FM_FAKE_CREW_STATE="$WORKING" || fail "the watcher stopped instead of recovering the crashed worker: $(cat "$dir/watch.out" "$dir/watch.err")"
     [ "$(wc -l < "$dir/control.log" | tr -d ' ')" = 1 ] \
