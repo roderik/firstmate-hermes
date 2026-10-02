@@ -10,8 +10,10 @@
 #   5. every reviewThreads[].isResolved == true (or no threads)
 #   6. latest commit statusCheckRollup.state == SUCCESS
 #   7. mergeStateStatus != BEHIND (the branch contains the current base)
-#   8. every required test check has at least one SUCCESS run on the head; a
-#      skipped-only check does not count.
+#   8. the PR targets the repository's default branch
+#   9. every configured required test check has at least one SUCCESS run on
+#      the head; a skipped-only check does not count. With none configured,
+#      the rollup gate alone decides.
 #
 # Usage:
 #   fm-pr-fleet-merge-eligible.sh <pr-url-or-owner/repo#n-or-n with -R>
@@ -88,10 +90,12 @@ fi
 # shellcheck disable=SC2016 # GraphQL variables are interpreted by GitHub, not the shell
 QUERY='query($o:String!,$n:String!,$number:Int!) {
   repository(owner:$o, name:$n) {
+    defaultBranchRef { name }
     pullRequest(number:$number) {
       number
       url
       isDraft
+      baseRefName
       mergeable
       mergeStateStatus
       reviewDecision
@@ -136,6 +140,7 @@ while :; do
   sleep 15
 done
 
+DEFAULT_BRANCH=$(printf '%s' "$JSON" | jq -r '.data.repository.defaultBranchRef.name // ""')
 PR=$(printf '%s' "$JSON" | jq -c '.data.repository.pullRequest // empty')
 if [ -z "$PR" ] || [ "$PR" = "null" ]; then
   echo "false missing_pr"
@@ -147,6 +152,7 @@ eval "$(printf '%s' "$PR" | jq -r '
   "URL=\(.url | @sh)",
   "PR_AUTHOR=\(.author.login // "" | @sh)",
   "DRAFT=\(.isDraft | tostring)",
+  "BASE=\(.baseRefName // "" | @sh)",
   "MERGEABLE=\(.mergeable // "" | @sh)",
   "MERGESTATE=\(.mergeStateStatus // "" | @sh)",
   "REVIEW=\(.reviewDecision // "" | @sh)",
@@ -166,12 +172,13 @@ done
 [ "$author_ok" -eq 1 ] || refusals="${refusals}  - author \"${PR_AUTHOR}\" not in fleet allowlist (${AUTHORS})"$'\n'
 [ "$DRAFT" = "false" ] || refusals="${refusals}  - is draft"$'\n'
 [ "$MERGEABLE" = "MERGEABLE" ] || refusals="${refusals}  - mergeable is \"${MERGEABLE}\", want MERGEABLE"$'\n'
-[ "$MERGESTATE" != "BEHIND" ] || refusals="${refusals}  - branch is behind its base (mergeStateStatus BEHIND); merge main in first"$'\n'
+[ "$MERGESTATE" != "BEHIND" ] || refusals="${refusals}  - branch is behind its base (mergeStateStatus BEHIND); merge the base branch in first"$'\n'
+[ -n "$DEFAULT_BRANCH" ] && [ "$BASE" = "$DEFAULT_BRANCH" ] || refusals="${refusals}  - base branch is \"${BASE}\", want the default branch \"${DEFAULT_BRANCH}\""$'\n'
 if [ "$REVIEW" = "CHANGES_REQUESTED" ]; then
   refusals="${refusals}  - reviewDecision is CHANGES_REQUESTED"$'\n'
 fi
 [ "$UNRESOLVED" = "0" ] || refusals="${refusals}  - ${UNRESOLVED} unresolved review thread(s)"$'\n'
-REQUIRED_TESTS="${FM_FLEET_REQUIRED_TEST_CHECKS:-Unit Tests,Integration Tests}"
+REQUIRED_TESTS="${FM_FLEET_REQUIRED_TEST_CHECKS:-}"
 IFS=',' read -r -a required_list <<<"$REQUIRED_TESTS"
 for chk in "${required_list[@]}"; do
   chk="${chk#"${chk%%[![:space:]]*}"}"; chk="${chk%"${chk##*[![:space:]]}"}"

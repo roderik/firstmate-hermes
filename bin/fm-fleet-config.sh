@@ -24,6 +24,7 @@ fm_fleet_config_load() {
   FM_FLEET_RENUDGE_S=$(jq -er '(.thresholds.renudge_seconds // 2700) | numbers | select(. >= 0)' "$config") || return 1
   FM_FLEET_ESCALATE_S=$(jq -er '(.thresholds.escalate_seconds // 7200) | numbers | select(. >= 0)' "$config") || return 1
   FM_FLEET_BUDGET_S=$(jq -er '(.thresholds.budget_seconds // 24) | numbers | select(. > 0)' "$config") || return 1
+  FM_FLEET_MERGE_METHOD=$(jq -er '(.merge_method // "") | strings | select(. == "" or . == "merge" or . == "squash" or . == "rebase")' "$config") || return 1
   FM_FLEET_CADENCE_S=$(jq -er '(.cadence_seconds // 300) | numbers | select(. > 0)' "$config") || return 1
   return 0
 }

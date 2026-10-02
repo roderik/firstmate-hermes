@@ -25,6 +25,14 @@ RENUDGE_S = 45 * 60
 ESCALATE_S = 120 * 60
 TAKEOVERS = {}
 REMOTE = set()
+STEERING = {
+    "conflict": "{url} conflicts with {base}. Bring {base} into the branch, resolve the conflicts, push, and keep watching the pull request until it is green.",
+    "red": "{url} has failing checks on head {head}: {checks}. Read the failing job log, fix the root cause, re-run the focused local checks, push, and keep watching the pull request.",
+    "behind": "{url} is behind {base}. Bring {base} into the branch, push, and keep watching the pull request.",
+    "cancelled": "{url} rollup is red only from cancelled runs ({cancelled}). Re-run each cancelled run once if no sibling run of that workflow is active, then keep watching the pull request.",
+    "threads": "{url} has {threads} unresolved review thread(s). Fix or answer each thread, resolve it, push, and keep watching the pull request.",
+}
+STEERING_DEFAULTS = dict(STEERING)
 try:
     with open(CONFIG, encoding="utf-8") as fh:
         cfg = json.load(fh)
@@ -34,6 +42,7 @@ try:
     ESCALATE_S = int(cfg.get("thresholds", {}).get("escalate_seconds", ESCALATE_S))
     TAKEOVERS = {int(k): v for k, v in cfg.get("takeovers", {}).items()}
     REMOTE = set(cfg.get("remote_lanes", []))
+    STEERING.update({k: v for k, v in cfg.get("steering", {}).items() if k in STEERING and isinstance(v, str)})
 except (OSError, ValueError, KeyError, json.JSONDecodeError):
     REPO = os.environ.get("FM_FLEET_REPO", "")
 
@@ -54,7 +63,7 @@ def sh(args, timeout=15):
 
 
 Q = """query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on PullRequest{
- number url isDraft mergeable mergeStateStatus headRefName author{login}
+ number url isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
  reviewThreads(first:60){nodes{isResolved}}
  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}}"""
@@ -128,19 +137,26 @@ def classify(pr):
     pending = [x for x in ctx if x.get("status") in ("IN_PROGRESS", "QUEUED", "PENDING", "WAITING") or x.get("state") == "PENDING"]
     threads = sum(1 for t in pr["reviewThreads"]["nodes"] if not t["isResolved"])
     head = c["oid"][:10]
-    url = pr["url"]
+    fields = {"url": pr["url"], "base": pr["baseRefName"], "head": head, "threads": threads,
+              "checks": "; ".join(f"{n} {u}" for n, u in fails[:4]),
+              "cancelled": ", ".join(sorted(set(canc)))[:120]}
+
+    def steer(kind):
+        try:
+            return STEERING[kind].format(**fields)
+        except (KeyError, IndexError, ValueError):
+            return STEERING_DEFAULTS[kind].format(**fields)
+
     if pr["mergeable"] == "CONFLICTING" or pr["mergeStateStatus"] == "DIRTY":
-        return head, "conflict", f"{url} is CONFLICTING with main. Merge origin/main now (never rebase), resolve, push, then ce-babysit-pr."
+        return head, "conflict", steer("conflict")
     if fails:
-        lst = "; ".join(f"{n} {u}" for n, u in fails[:4])
-        return head, "red:" + ",".join(sorted(n for n, _ in fails)), \
-            f"{url} has failing checks on head {head}: {lst}. Read the failing job log, fix the root cause, push, ce-babysit-pr. Re-run the focused local checks and review before pushing the fix."
+        return head, "red:" + ",".join(sorted(n for n, _ in fails)), steer("red")
     if pr["mergeStateStatus"] == "BEHIND":
-        return head, "behind", f"{url} is BEHIND main. Merge origin/main (a clean main-only merge may push with --no-verify), push, ce-babysit-pr."
+        return head, "behind", steer("behind")
     if canc and not pending and roll.get("state") != "SUCCESS":
-        return head, "cancelled", f"{url} rollup is red only from cancelled runs ({', '.join(sorted(set(canc)))[:120]}). Re-run each cancelled run ONCE (gh run rerun), only if no sibling run of that workflow is active, then ce-babysit-pr."
+        return head, "cancelled", steer("cancelled")
     if threads:
-        return head, "threads", f"{url} has {threads} unresolved review thread(s). Use ce-resolve-pr-feedback: fix or answer each, resolve, push, ce-babysit-pr."
+        return head, "threads", steer("threads")
     if pending:
         return head, "running", None
     if pr["isDraft"]:

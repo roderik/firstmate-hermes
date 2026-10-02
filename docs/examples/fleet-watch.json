@@ -2,6 +2,7 @@
   "repo": "example-owner/example-repo",
   "authors": ["example-author"],
   "required_test_checks": ["Unit Tests", "Integration Tests"],
+  "merge_method": "squash",
   "cadence_seconds": 300,
   "thresholds": {
     "budget_seconds": 24,
@@ -10,6 +11,9 @@
   },
   "takeovers": {},
   "remote_lanes": [],
+  "steering": {
+    "behind": "{url} is behind {base}. Merge {base} into the branch, push, and keep watching the pull request."
+  },
   "rollout_workflows": [
     {"name": "Release", "branch": "main"}
   ]

@@ -8,6 +8,9 @@
 #
 # Optional: FM_FLEET_PR_AUTHORS=person-a
 # Optional: FM_FLEET_MERGE_DRY_RUN=1  — print eligible + would-merge, no merge
+#
+# The merge method is merge_method from fleet-watch.json; without one, the
+# first method the repository allows, in the order squash, merge, rebase.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,8 +39,18 @@ NAME="${BASH_REMATCH[2]}"
 NUMBER="${BASH_REMATCH[3]}"
 URL="https://github.com/${OWNER}/${NAME}/pull/${NUMBER}"
 
+METHOD="${FM_FLEET_MERGE_METHOD:-}"
+if [ -z "$METHOD" ]; then
+  # shellcheck disable=SC2016 # GraphQL variables are interpreted by GitHub, not the shell
+  METHOD=$("$FM_FLEET_GH_BIN" api graphql \
+    -f query='query($o:String!,$n:String!){repository(owner:$o,name:$n){squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed}}' \
+    -f o="$OWNER" -f n="$NAME" 2>/dev/null | jq -r '.data.repository
+      | if .squashMergeAllowed then "squash" elif .mergeCommitAllowed then "merge" elif .rebaseMergeAllowed then "rebase" else empty end') || METHOD=""
+  [ -n "$METHOD" ] || { echo "error: could not resolve an allowed merge method for $OWNER/$NAME" >&2; exit 2; }
+fi
+
 if [ "${FM_FLEET_MERGE_DRY_RUN:-0}" = 1 ]; then
-  echo "dry-run: would admin-merge $URL"
+  echo "dry-run: would admin-merge $URL with --$METHOD"
   exit 0
 fi
 
@@ -47,6 +60,5 @@ fi
   exit 1
 }
 
-# Admin merge: squash to match fleet default, delete branch
-"$FM_FLEET_GH_BIN" pr merge "$NUMBER" -R "${OWNER}/${NAME}" --admin --squash --delete-branch
+"$FM_FLEET_GH_BIN" pr merge "$NUMBER" -R "${OWNER}/${NAME}" --admin "--$METHOD" --delete-branch
 echo "merged: $URL"

@@ -2247,6 +2247,10 @@ Copy [`docs/examples/fleet-watch.json`](examples/fleet-watch.json) and replace i
 
 The configuration contains `repo`, an `authors` allowlist, `required_test_checks`, `cadence_seconds`, and `thresholds` for `budget_seconds`, `renudge_seconds`, and `escalate_seconds`.
 The optional `takeovers` object maps pull-request numbers to lane ids, `remote_lanes` excludes lanes that cannot receive local steering, and `rollout_workflows` lists objects with `name` and optional `branch` fields.
+The optional `merge_method` is `merge`, `squash`, or `rebase`; without it the admin merge uses the first method the repository allows, in the order squash, merge, rebase.
+The optional `steering` object replaces the message sent to the owning lane for `conflict`, `red`, `behind`, `cancelled`, or `threads`.
+Each template may use `{url}`, `{base}`, `{head}`, `{checks}`, `{cancelled}`, and `{threads}`, and a template that cannot be filled falls back to the neutral built-in wording.
+Name team-specific skills or branch policies in these templates rather than in the shared scripts.
 The author list and repository are required for the pull-request checks, and a missing or malformed file fails closed with a check diagnostic.
 
 Run `bin/fm-pr-stall-check.sh` from a registered `state/pr-stall.check.sh` shim to classify conflicts, failing checks, behind branches, cancelled-only rollups, and unresolved threads.
@@ -2254,7 +2258,8 @@ The sweep steers the owning lane, re-nudges after `renudge_seconds`, invokes the
 Register the shim with `bin/fm-check-register.sh pr-stall` after placing it at `state/pr-stall.check.sh`, or create an equivalent shim that invokes `bin/fm-pr-stall-sweep.py`.
 
 Use `bin/fm-pr-fleet-merge-eligible.sh`, `bin/fm-pr-fleet-any-eligible.sh`, and `bin/fm-pr-fleet-admin-merge.sh` for deterministic eligibility, condition checks, and the final guarded admin merge.
-The eligibility script requires a configured author, a non-draft mergeable pull request, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
+The eligibility script requires a configured author, a non-draft mergeable pull request against the repository's default branch, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
+When `required_test_checks` is omitted or empty, the successful rollup alone decides the check gate.
 Set `FM_FLEET_MERGE_DRY_RUN=1` to exercise the admin-merge path without changing the forge.
 
 Run `bin/fm-release-rollout-check.sh` from a registered custom check to report each newly completed failed workflow in `rollout_workflows`.

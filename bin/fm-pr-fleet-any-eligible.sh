@@ -25,8 +25,8 @@ for author in "${authors[@]}"; do
   author=${author// /}
   [ -n "$author" ] || continue
   numbers=$("$FM_FLEET_GH_BIN" pr list --repo "$REPO" --author "$author" --state open --limit 100 \
-    --json number,isDraft,baseRefName \
-    --jq '.[] | select(.isDraft | not) | select(.baseRefName == "main") | .number') || exit 2
+    --json number,isDraft \
+    --jq '.[] | select(.isDraft | not) | .number') || exit 2
   for n in $numbers; do
   if [ -f "$HOLD" ] && grep -qxF "$n" "$HOLD"; then continue; fi
   if "$ELIGIBLE" "https://github.com/$REPO/pull/$n" >/dev/null 2>&1; then
