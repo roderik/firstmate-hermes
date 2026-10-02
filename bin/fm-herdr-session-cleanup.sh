@@ -62,7 +62,7 @@ fm_herdr_cleanup_home_identity() {
   (cd "$FM_HOME" 2>/dev/null && pwd -P)
 }
 
-fm_herdr_cleanup_journal_matches() { # <title> <session> <home-real>
+fm_herdr_cleanup_journal_matches_uncached() { # <title> <session> <home-real>
   local title=$1 session=$2 home_real=$3 journal id expected journal_home
   [ -d "$STATE" ] && [ ! -L "$STATE" ] || return 1
   for journal in "$STATE"/*"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"; do
@@ -81,6 +81,36 @@ fm_herdr_cleanup_journal_matches() { # <title> <session> <home-real>
     [ "$expected" = "$title" ] || continue
     printf '%s\t%s\t%s\n' "$journal" "$id" "$FM_BACKEND_HERDR_JOURNAL_PROJECTION_ID"
   done
+}
+
+
+fm_herdr_cleanup_journal_matches() { # <title> <session> <home-real>
+  local title=$1 session=$2 home_real=$3
+  if [ "${FM_HERDR_CLEANUP_CACHE_SESSION:-}" != "$session" ] \
+    || [ "${FM_HERDR_CLEANUP_CACHE_HOME:-}" != "$home_real" ]; then
+    FM_HERDR_CLEANUP_CACHE_SESSION=$session
+    FM_HERDR_CLEANUP_CACHE_HOME=$home_real
+    FM_HERDR_CLEANUP_CACHE=
+    local journal id token expected journal_home
+    [ -d "$STATE" ] && [ ! -L "$STATE" ] || return 1
+    for journal in "$STATE"/*"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"; do
+      [ -f "$journal" ] && [ ! -L "$journal" ] || continue
+      id=$(basename "$journal" "$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX")
+      fm_task_id_creation_valid "$id" || continue
+      fm_backend_herdr_projection_journal_snapshot "$journal" "$id" || continue
+      if [ "$FM_BACKEND_HERDR_JOURNAL_VERSION" = 2 ]; then
+        journal_home=$(fm_backend_herdr_projection_home_identity "$FM_BACKEND_HERDR_JOURNAL_HOME" 2>/dev/null) || continue
+        [ "$journal_home" = "$home_real" ] && [ "$FM_BACKEND_HERDR_JOURNAL_SESSION" = "$session" ] || continue
+      fi
+      expected=$(fm_backend_herdr_projection_workspace_label "$id" "$FM_BACKEND_HERDR_JOURNAL_PROJECTION_ID")
+      FM_HERDR_CLEANUP_CACHE+="$(printf '%s\t%s\t%s\t%s\n' "$journal" "$id" "$FM_BACKEND_HERDR_JOURNAL_PROJECTION_ID" "$expected")"
+    done
+  fi
+  while IFS=$'\t' read -r journal id token expected; do
+    [ "$expected" = "$title" ] || continue
+    printf '%s\t%s\t%s\n' "$journal" "$id" "$token"
+  done <<< "${FM_HERDR_CLEANUP_CACHE:-}"
+  return 0
 }
 
 fm_herdr_cleanup_unique_match() { # <title> <session> <home-real>
