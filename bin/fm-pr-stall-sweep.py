@@ -42,7 +42,9 @@ try:
     ESCALATE_S = int(cfg.get("thresholds", {}).get("escalate_seconds", ESCALATE_S))
     TAKEOVERS = {int(k): v for k, v in cfg.get("takeovers", {}).items()}
     REMOTE = set(cfg.get("remote_lanes", []))
-    STEERING.update({k: v for k, v in cfg.get("steering", {}).items() if k in STEERING and isinstance(v, str)})
+    steering = cfg.get("steering")
+    if isinstance(steering, dict):
+        STEERING.update({k: v for k, v in steering.items() if k in STEERING and isinstance(v, str)})
 except (OSError, ValueError, KeyError, json.JSONDecodeError):
     REPO = os.environ.get("FM_FLEET_REPO", "")
 
@@ -144,7 +146,7 @@ def classify(pr):
     def steer(kind):
         try:
             return STEERING[kind].format(**fields)
-        except (KeyError, IndexError, ValueError):
+        except Exception:
             return STEERING_DEFAULTS[kind].format(**fields)
 
     if pr["mergeable"] == "CONFLICTING" or pr["mergeStateStatus"] == "DIRTY":

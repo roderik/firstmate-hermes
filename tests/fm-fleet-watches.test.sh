@@ -88,7 +88,7 @@ grep -qxF 'merged: https://github.com/owner/repo/pull/7' "$work/merge.out"
 grep -qxF 'pr merge 7 -R owner/repo --admin --rebase --delete-branch' "$work/gh.log"
 
 write_config <<'JSON'
-{"repo": "owner/repo", "authors": ["author"], "steering": {"behind": "{url} trails {base}; run team-sync.", "threads": "{nope}"}}
+{"repo": "owner/repo", "authors": ["author"], "steering": {"behind": "{url} trails {base}; run team-sync.", "threads": "{nope}", "conflict": "{url.name}"}}
 JSON
 fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/steer.out" <<'PY'
 import importlib.util, sys
@@ -107,4 +107,15 @@ PY
 sed -n 1p "$work/steer.out" | grep -qxF 'https://github.com/owner/repo/pull/7 trails trunk; run team-sync.'
 sed -n 2p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 has 2 unresolved review thread(s)\.'
 sed -n 3p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 conflicts with trunk\.'
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": ["author"], "steering": ["not", "an", "object"]}
+JSON
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/steer.out" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+print(sweep.REPO)
+PY
+grep -qxF owner/repo "$work/steer.out"
 printf 'ok - fleet watch configuration and checks\n'

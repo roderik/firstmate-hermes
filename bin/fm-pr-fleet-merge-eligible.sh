@@ -164,7 +164,7 @@ eval "$(printf '%s' "$PR" | jq -r '
 refusals=""
 author_ok=0
 IFS=',' read -r -a author_list <<<"$AUTHORS"
-for a in "${author_list[@]}"; do
+for a in ${author_list[@]+"${author_list[@]}"}; do
   a_trim="${a// /}"
   [ -n "$a_trim" ] || continue
   if [ "$PR_AUTHOR" = "$a_trim" ]; then author_ok=1; break; fi
@@ -180,7 +180,7 @@ fi
 [ "$UNRESOLVED" = "0" ] || refusals="${refusals}  - ${UNRESOLVED} unresolved review thread(s)"$'\n'
 REQUIRED_TESTS="${FM_FLEET_REQUIRED_TEST_CHECKS:-}"
 IFS=',' read -r -a required_list <<<"$REQUIRED_TESTS"
-for chk in "${required_list[@]}"; do
+for chk in ${required_list[@]+"${required_list[@]}"}; do
   chk="${chk#"${chk%%[![:space:]]*}"}"; chk="${chk%"${chk##*[![:space:]]}"}"
   [ -n "$chk" ] || continue
   passed=$(printf '%s' "$PR" | jq --arg c "$chk" '[.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[]?
