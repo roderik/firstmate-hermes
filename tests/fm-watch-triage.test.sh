@@ -2714,6 +2714,91 @@ test_exited_declared_pause_is_bounded_but_live_gate_surfaces() {
   pass "exited declared-pause and captain-held panes use bounded pause cadence while a live decision gate still surfaces once"
 }
 
+# A worker whose runtime is dormant when idle (Codex: it stays at its prompt
+# after a background job it started finishes) cannot end its own declared
+# wait, so an idle Codex pane under `paused:` must take the ordinary stale path
+# - surface on first sight, then escalate on the STALE_ESCALATE_SECS wedge timer
+# - instead of the long pause cadence the live grok gate above keeps. The
+# verdict comes from the real classifier reading a real rollout fixture, bound
+# through the task's own meta exactly as fm-spawn records it.
+codex_fixture() {  # <dir> <state> <id> <window> <open|closed>
+  local dir=$1 state=$2 id=$3 window=$4 turn=$5 now stamp sdir f
+  now=$(date +%s)
+  printf 'window=%s\nkind=ship\nharness=codex\nbackend=tmux\nworktree=%s/wt\nspawn_gen=s%s.1.1\n' \
+    "$window" "$dir" "$((now - 600))" > "$state/$id.meta"
+  stamp=$(date -r "$((now - 590))" '+%Y-%m-%dT%H-%M-%S' 2>/dev/null || date -d "@$((now - 590))" '+%Y-%m-%dT%H-%M-%S')
+  sdir="$dir/codex-home/sessions/${stamp:0:4}/${stamp:5:2}/${stamp:8:2}"
+  mkdir -p "$sdir"
+  f="$sdir/rollout-$stamp-01a0-watch.jsonl"
+  printf '{"type":"session_meta","payload":{"cwd":"%s/wt","originator":"codex-tui","source":"cli","thread_source":"user"}}\n' "$dir" > "$f"
+  printf '{"type":"event_msg","payload":{"type":"task_started","turn_id":"t1"}}\n' >> "$f"
+  [ "$turn" = open ] || printf '{"type":"event_msg","payload":{"type":"task_complete","turn_id":"t1"}}\n' >> "$f"
+}
+
+test_dormant_codex_paused_wait_takes_the_stale_window() {
+  local dir state fakebin out capture_file statusf window key pid wakes
+  dir=$(make_case dormant-codex-paused); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"; statusf="$state/cx.status"
+  window="test:fm-cx"
+  printf '› Ask Codex to do anything\n' > "$capture_file"
+  codex_fixture "$dir" "$state" cx "$window" closed
+  printf 'paused [at=1]: waiting on taskguard ci:local; resume when it finishes\n' > "$statusf"
+  printf '%s' "$(seen_sig "$statusf")" > "$state/.seen-cx_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  printf '%s' "$(hash_text '› Ask Codex to do anything')" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+
+  # First sight surfaces at once, naming why the declaration does not hold.
+  CODEX_HOME="$dir/codex-home" PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_FAKE_TMUX_CURRENT_COMMAND=codex FM_FAKE_CREW_STATE='state: paused · source: status-log · waiting on taskguard ci:local' \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_PAUSE_RESURFACE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" >> "$out" &
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "an idle codex pane under a declared wait did not surface on first sight"; }
+  grep -F "does not resume itself when the wait clears" "$state/.wake-queue" >/dev/null \
+    || fail "the dormant-wait surface did not say why the declaration does not hold: $(cat "$state/.wake-queue")"
+  [ ! -e "$state/.paused-$key" ] || fail "an idle codex pane under a declared wait was given the pause cadence"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the first dormant-wait surface"
+
+  # The unchanged hash then rides the ordinary wedge timer, not the long
+  # pause cadence: once the stale window passes, it escalates again.
+  printf '%s\n' $(( $(date +%s) - 500 )) > "$state/.stale-since-$key"
+  CODEX_HOME="$dir/codex-home" PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_FAKE_TMUX_CURRENT_COMMAND=codex FM_FAKE_CREW_STATE='state: paused · source: status-log · waiting on taskguard ci:local' \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=240 FM_PAUSE_RESURFACE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" >> "$out" &
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "an idle codex pane under a declared wait was absorbed past the stale window"; }
+  grep -F "possible wedge, escalation 1" "$state/.wake-queue" >/dev/null \
+    || fail "the dormant-wait pane did not escalate on the ordinary stale window: $(cat "$state/.wake-queue")"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the dormant-wait escalation"
+
+  # The same declaration over a turn that is still open is a worker waiting
+  # in the foreground: provably busy, so nothing surfaces.
+  dir=$(make_case busy-codex-paused); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"; statusf="$state/cx.status"
+  printf '• Working (12m • esc to interrupt)\n' > "$capture_file"
+  codex_fixture "$dir" "$state" cx "$window" open
+  printf 'paused [at=1]: waiting on taskguard ci:local in the foreground\n' > "$statusf"
+  printf '%s' "$(seen_sig "$statusf")" > "$state/.seen-cx_status"
+  printf '%s' "$(hash_text '• Working (12m • esc to interrupt)')" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  : > "$state/cx.turn-ended"
+  CODEX_HOME="$dir/codex-home" PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_FAKE_TMUX_CURRENT_COMMAND=codex FM_FAKE_CREW_STATE='state: working · source: pane · harness busy (codex-rollout)' \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_PAUSE_RESURFACE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" >> "$out" &
+  pid=$!
+  if ! wait_poll_cycle "$state" "$pid"; then
+    reap "$pid"
+    fail "a busy codex pane under a declared wait surfaced: $(cat "$out")"
+  fi
+  reap "$pid"
+  wakes=$(awk -F '\t' -v w="$window" '$3 == "stale" && $4 == w { n++ } END { print n + 0 }' "$state/.wake-queue" 2>/dev/null || echo 0)
+  [ "$wakes" -eq 0 ] || fail "a busy codex pane under a declared wait queued $wakes stale wakes"
+  pass "an idle codex pane under a declared wait takes the ordinary stale window; a busy one stays absorbed"
+}
+
 # A dead worker reaches handle_paused_stale rather than the live fallback above.
 # When one declared wait directly replaces another, the existing
 # throttle belongs to the old declaration and must not suppress the new wait's
@@ -6699,6 +6784,7 @@ test_afk_busy_declared_pause_ticking_pane_hands_off_once
 test_nonterminal_stale_not_working_surfaced
 test_nonterminal_stale_paused_absorbed_then_resurfaced
 test_exited_declared_pause_is_bounded_but_live_gate_surfaces
+test_dormant_codex_paused_wait_takes_the_stale_window
 test_own_work_wait_keeps_first_alert_then_long_cadence
 test_absorbed_replacement_wait_does_not_inherit_the_old_throttle
 test_live_declared_wait_churn_honors_the_resurface_throttle

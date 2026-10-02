@@ -919,6 +919,40 @@ test_stale_paused_classifies_pause() {
   pass "paused reasons with captain phrases remain pause-classified"
 }
 
+# A worker whose runtime is dormant when idle (Codex) cannot end its own
+# declared wait, so under away mode an idle Codex pane under `paused:` is aged
+# like an undeclared quiet pane instead of earning the pause cadence. The same
+# declaration over an open turn keeps the pause action, and so does any other
+# harness. The verdict comes from the real classifier over a rollout fixture.
+test_stale_dormant_codex_pause_ages_as_stale() {
+  local dir state out now stamp sdir f saved_capture
+  dir=$(make_supercase stale-dormant-codex)
+  state="$dir/state"
+  now=$(date +%s)
+  printf 'window=sess:fm-cxd\nkind=ship\nharness=codex\nbackend=tmux\nworktree=%s/wt\nspawn_gen=s%s.1.1\n' \
+    "$dir" "$((now - 600))" > "$state/cxd.meta"
+  stamp=$(fm_busy_codex_stamp "$((now - 590))")
+  sdir="$dir/codex-home/sessions/${stamp:0:4}/${stamp:5:2}/${stamp:8:2}"
+  mkdir -p "$sdir"
+  f="$sdir/rollout-$stamp-01a0-daemon.jsonl"
+  printf '{"type":"session_meta","payload":{"cwd":"%s/wt","originator":"codex-tui","source":"cli","thread_source":"user"}}\n' "$dir" > "$f"
+  printf '{"type":"event_msg","payload":{"type":"task_started","turn_id":"t1"}}\n' >> "$f"
+  printf 'paused: waiting on taskguard ci:local; resume when it finishes\n' > "$state/cxd.status"
+  saved_capture=$(declare -f fm_backend_capture)
+  # shellcheck disable=SC2329 # invoked indirectly through stale_window_dormant_wait
+  fm_backend_capture() { printf '› Ask Codex to do anything\n'; }
+  out=$(CODEX_HOME="$dir/codex-home" FM_STATE_OVERRIDE="$state" classify_stale "sess:fm-cxd" "$state")
+  case "$out" in pause\|*) ;; *) fail "a busy codex pane under a declared wait lost its pause: $out" ;; esac
+  printf '{"type":"event_msg","payload":{"type":"task_complete","turn_id":"t1"}}\n' >> "$f"
+  out=$(CODEX_HOME="$dir/codex-home" FM_STATE_OVERRIDE="$state" classify_stale "sess:fm-cxd" "$state")
+  case "$out" in self\|*"cannot resume from by itself"*) ;; *) fail "an idle codex pane under a declared wait kept the pause cadence: $out" ;; esac
+  sed -i.bak 's/^harness=codex$/harness=grok/' "$state/cxd.meta"
+  out=$(CODEX_HOME="$dir/codex-home" FM_STATE_OVERRIDE="$state" classify_stale "sess:fm-cxd" "$state")
+  case "$out" in pause\|*) ;; *) fail "a non-dormant harness lost its declared pause: $out" ;; esac
+  eval "$saved_capture"
+  pass "an idle codex pane under a declared wait ages as stale in away mode; busy or non-dormant panes keep the pause"
+}
+
 # A resolved line for another phase key, including the stated default key that
 # `fm-send --resolve-key default` writes for a keyless decision, lands after the
 # pause without ending it. The worker's own keyless resolved line does end it.
@@ -3159,6 +3193,7 @@ test_enriched_wedge_under_declared_wait_uses_pause_cadence
 test_stale_terminal_escalates
 test_stale_actionable_wait_escalates_and_keeps_pause_cadence
 test_stale_paused_classifies_pause
+test_stale_dormant_codex_pause_ages_as_stale
 test_stale_pause_survives_a_foreign_resolved_line
 test_stale_captain_held_classifies_pause
 test_handle_wake_paused_records_pause_marker

@@ -6,7 +6,8 @@ Verified on 2026-06-11 with codex-cli 0.139.0 unless a fact gives a newer versio
 
 | Fact | Value |
 |---|---|
-| Busy state | Unknown until a semantic source is live-verified: the app-server turn lifecycle is unreachable for a pane worker, and project lifecycle hooks did not fire for a Firstmate-launched worker. |
+| Busy state | Codex's own session rollout, verified live on 2026-10-02 with codex-cli 0.159.0 and 0.160.0: `task_started` opens a turn, and `task_complete` (including an API-error end) or `turn_aborted` (an Escape interrupt) closes it, with no hooks or trust grant involved. `../../../bin/fm-busy-lib.sh` binds the pane from the task's recorded worktree and spawn time and owns the fold; the app-server and hook push sources stay unused because worker launches disable the hook layer. |
+| Idle resume | Dormant: an idle Codex worker stays at its prompt after a background job it started finishes, verified on the same date and version, so a `paused:` wait it declared while idle cannot end by itself and supervision ages it like an undeclared quiet worker until firstmate steers it. A worker that waits in a foreground command keeps its turn open and reads busy. |
 | Exit command | `/quit`; its slash popup needs about one second between text and Enter, which the shared submit path used by the control plane handles. |
 | Interrupt | Single Escape. |
 | Skill invocation | `$<skill>`, for example `$no-mistakes`; `/<skill>` is Claude-only and Codex rejects it as "Unrecognized command". |

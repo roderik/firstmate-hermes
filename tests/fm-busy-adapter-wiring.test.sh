@@ -288,21 +288,39 @@ test_claude_hooks_stale_incarnation_harmless() {
   pass "claude hook events from a superseded incarnation are rejected without breaking the hook"
 }
 
-test_codex_unverified_until_a_semantic_source_exists() {
-  local rec id=busy-cx-1 out state
-  rec=$(make_spawn_case codex-unverified codex "$id")
+test_codex_classifies_from_its_own_rollout() {
+  local rec id=busy-cx-1 out state wt gen epoch stamp dir f
+  rec=$(make_spawn_case codex-rollout codex "$id")
   read_case_record "$rec"
   out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR")
   expect_code 0 $? "codex spawn should succeed: $out"
   state="$HOME_DIR/state"
-  assert_absent "$state/$id.busy-gen" "codex must not arm a busy contract with no verified semantic source"
-  assert_absent "$WT_DIR/.codex/hooks.json" "codex must not install unverified busy hooks"
+  assert_absent "$state/$id.busy-gen" "codex must not arm a busy record: its source is a pull source"
+  assert_absent "$WT_DIR/.codex/hooks.json" "codex must not install busy hooks"
   assert_contains "$out" 'spawned '"$id"' harness=codex' "codex spawn did not complete normally"
+  export CODEX_HOME="$CASE_DIR/codex-home"
   out=$(classify codex "$id" "$state")
-  [ "$out" = "unknown codex-unverified" ] || fail "codex must classify 'unknown codex-unverified', got '$out'"
+  [ "$out" = "unknown codex-rollout" ] || fail "codex with no rollout yet must classify 'unknown codex-rollout', got '$out'"
   out=$(fm_busy_classify tmux fake:w codex "$id" "$state" '• Working (6s • esc to interrupt)')
-  [ "$out" = "unknown codex-unverified" ] || fail "codex must not fall back to footer text, got '$out'"
-  pass "codex classifies unknown until a semantic source is verified, never idle or footer-matched"
+  [ "$out" = "unknown codex-rollout" ] || fail "codex must not fall back to footer text, got '$out'"
+  # The binding reads only what this real spawn recorded: worktree= and the
+  # s<epoch> prefix of spawn_gen=.
+  wt=$(fm_busy_codex_kv "$state/$id.meta" worktree)
+  gen=$(fm_busy_codex_kv "$state/$id.meta" spawn_gen)
+  epoch=${gen#s}; epoch=${epoch%%.*}
+  stamp=$(fm_busy_codex_stamp "$((epoch + 1))")
+  dir="$CODEX_HOME/sessions/${stamp:0:4}/${stamp:5:2}/${stamp:8:2}"
+  mkdir -p "$dir"
+  f="$dir/rollout-$stamp-01a0-wire.jsonl"
+  printf '{"type":"session_meta","payload":{"cwd":"%s","originator":"codex-tui","source":"cli","thread_source":"user"}}\n' "$wt" > "$f"
+  printf '{"type":"event_msg","payload":{"type":"task_started","turn_id":"a"}}\n' >> "$f"
+  out=$(classify codex "$id" "$state")
+  [ "$out" = "busy codex-rollout" ] || fail "an open turn in the spawned pane's rollout must classify busy, got '$out'"
+  printf '{"type":"event_msg","payload":{"type":"task_complete","turn_id":"a"}}\n' >> "$f"
+  out=$(classify codex "$id" "$state")
+  [ "$out" = "idle codex-rollout" ] || fail "a completed turn must classify idle, got '$out'"
+  unset CODEX_HOME
+  pass "a spawned codex worker classifies from its own rollout, bound by the spawn's own metadata"
 }
 
 # Gemini's hooks are PROJECT hooks in the worktree's own .gemini/settings.json,
@@ -433,6 +451,6 @@ test_gemini_hooks_semantic_lifecycle
 test_gemini_hooks_stale_incarnation_harmless
 test_raw_gemini_launch_has_no_semantic_wiring
 test_gemini_is_refused_as_a_secondmate
-test_codex_unverified_until_a_semantic_source_exists
+test_codex_classifies_from_its_own_rollout
 
 echo "all fm-busy-adapter-wiring tests passed"
