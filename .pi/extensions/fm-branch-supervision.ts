@@ -2151,19 +2151,6 @@ ${context.command}
     return stockOutcomesPreviewLines ?? undefined;
   };
 
-  // Pi's own fallback call header, so the Calm-off row matches stock on every
-  // Pi version: since Pi 0.99 stock appends the call arguments to the title.
-  const stockOutcomesCallHeader = (
-    toolName: string,
-    args: unknown,
-    context: Parameters<NonNullable<ToolDefinition["renderCall"]>>[2],
-  ): Text => {
-    const { createCallFallback } = ToolExecutionComponent.prototype as unknown as {
-      createCallFallback: (this: { toolName: string; args: unknown; expanded: boolean }) => Text;
-    };
-    return createCallFallback.call({ toolName, args, expanded: context.expanded });
-  };
-
   type OutcomesToolShellState = {
     shell?: Box;
     call?: Text;
