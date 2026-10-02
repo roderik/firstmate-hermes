@@ -2258,7 +2258,7 @@ The sweep steers the owning lane, re-nudges after `renudge_seconds`, invokes the
 Register the shim with `bin/fm-check-register.sh pr-stall` after placing it at `state/pr-stall.check.sh`, or create an equivalent shim that invokes `bin/fm-pr-stall-sweep.py`.
 
 Use `bin/fm-pr-fleet-merge-eligible.sh`, `bin/fm-pr-fleet-any-eligible.sh`, and `bin/fm-pr-fleet-admin-merge.sh` for deterministic eligibility, condition checks, and the final guarded admin merge.
-The eligibility script requires a configured author, a non-draft mergeable pull request against the repository's default branch, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
+The eligibility script requires a configured author, a non-draft mergeable pull request against the repository's default branch, no requested changes, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
 When `required_test_checks` is omitted or empty, the successful rollup alone decides the check gate.
 To hold a pull request back from `bin/fm-pr-fleet-any-eligible.sh`, list its number on its own line in `fleet-merge-hold.txt` beside `fleet-watch.json` in `$FM_HOME/config`, or in the file named by `FM_FLEET_HOLD_FILE`.
 Set `FM_FLEET_MERGE_DRY_RUN=1` to exercise the admin-merge path without changing the forge.
