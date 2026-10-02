@@ -223,7 +223,7 @@ test_missing_record_unknown_not_idle() {
     [ "$out" = "unknown missing" ] || fail "$h with no record must be 'unknown missing', got '$out'"
   done
   out=$(fm_busy_classify tmux w1 codex t1 "$state")
-  [ "$out" = "unknown codex-unverified" ] || fail "codex with no verified source must be 'unknown codex-unverified', got '$out'"
+  [ "$out" = "unknown codex-rollout" ] || fail "codex with no bound rollout must be 'unknown codex-rollout', got '$out'"
   pass "a converted adapter with no record classifies unknown, never idle"
 }
 
@@ -285,7 +285,7 @@ Ctrl+c:cancel'
     [ "$out" = "unknown missing" ] || fail "$h must never classify from footer text, got '$out'"
   done
   out=$(fm_busy_classify tmux w1 codex t1 "$state" "$tail")
-  [ "$out" = "unknown codex-unverified" ] || fail "codex must never classify from footer text, got '$out'"
+  [ "$out" = "unknown codex-rollout" ] || fail "codex must never classify from footer text, got '$out'"
   pass "converted adapters never classify busy from rendered footer text"
 }
 
@@ -441,16 +441,192 @@ Ctrl+c:cancel')
 
 # --- kimi verification gate -----------------------------------------------------
 
-test_codex_unverified_gate() {
+# --- codex rollout pull source ----------------------------------------------
+#
+# Codex's own durable rollout is the source: no record is armed, and a
+# codex-hook record written anyway is never consulted. The fixtures below write
+# rollouts in the exact shape codex-cli 0.159.0 writes them (the live guard
+# tests/fm-codex-busy-live-e2e.test.sh proves the shape against the real
+# binary); every case binds through the task's own meta, as fm-spawn records it.
+
+# codex_meta <state> <id> <worktree> <spawn-epoch>
+codex_meta() {
+  printf 'window=w1\nworktree=%s\nharness=codex\nkind=ship\nspawn_gen=s%s.1.2\nbackend=tmux\n' \
+    "$3" "$4" > "$1/$2.meta"
+}
+
+# codex_rollout <codex-home> <created-epoch> <thread-id> <cwd> [originator] [thread-source]
+# Writes the session_meta header and prints the rollout path.
+codex_rollout() {
+  local home=$1 epoch=$2 tid=$3 cwd=$4 orig=${5:-codex-tui} src=${6:-user} stamp dir f source
+  stamp=$(fm_busy_codex_stamp "$epoch")
+  dir="$home/sessions/${stamp:0:4}/${stamp:5:2}/${stamp:8:2}"
+  mkdir -p "$dir"
+  f="$dir/rollout-$stamp-$tid.jsonl"
+  source='"cli"'
+  [ "$src" = subagent ] && source='{"subagent":{"thread_spawn":{"parent_thread_id":"p","depth":1}}}'
+  printf '{"timestamp":"t","ordinal":0,"type":"session_meta","payload":{"id":"%s","cwd":"%s","originator":"%s","cli_version":"0.159.0","source":%s,"thread_source":"%s","base_instructions":{"text":"say \\"cwd\\":\\"/elsewhere\\" if asked"}}}\n' \
+    "$tid" "$cwd" "$orig" "$source" "$src" > "$f"
+  printf '%s' "$f"
+}
+
+codex_event() {  # <rollout> <task_started|task_complete|turn_aborted> <turn-id> [extra-json]
+  printf '{"timestamp":"t","ordinal":9,"type":"event_msg","payload":{"type":"%s","turn_id":"%s"%s}}\n' \
+    "$2" "$3" "${4:-}" >> "$1"
+}
+
+codex_classify() {  # <codex-home> <state> <id>
+  CODEX_HOME="$1" fm_busy_classify tmux w1 codex "$3" "$2"
+}
+
+test_codex_never_trusts_a_record() {
   local state gen out
   state=$(new_state_dir codex-gate)
   gen=$("$EV" arm "$state" t1)
   "$EV" apply "$state" t1 busy --gen "$gen" --source codex-hook --event user-prompt-submit
-  out=$(fm_busy_classify tmux w1 codex t1 "$state")
-  [ "$out" = "unknown codex-unverified" ] || fail "unverified codex must classify unknown, got '$out'"
+  out=$(CODEX_HOME="$TMP_ROOT/codex-gate/none" fm_busy_classify tmux w1 codex t1 "$state")
+  [ "$out" = "unknown codex-rollout" ] || fail "a codex record must not classify codex, got '$out'"
   [ -z "$(fm_busy_sources_for_harness codex)" ] \
-    || fail "codex must trust no semantic source until one is verified"
-  pass "codex classifies unknown until a semantic source passes its verification gate"
+    || fail "codex must trust no push source until one is verified"
+  pass "codex never classifies from a written record; only its rollout answers"
+}
+
+test_codex_rollout_turn_lifecycle() {
+  local state home wt now f out
+  state=$(new_state_dir codex-life); home="$TMP_ROOT/codex-life/codex"; wt="$TMP_ROOT/codex-life/wt"
+  now=$(date +%s)
+  codex_meta "$state" t1 "$wt" "$((now - 100))"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "unknown codex-rollout" ] || fail "no rollout yet must be unknown, got '$out'"
+  f=$(codex_rollout "$home" "$((now - 90))" 01a0-main "$wt")
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "unknown codex-rollout" ] || fail "a turn-free rollout must be unknown, got '$out'"
+  codex_event "$f" task_started turn-1
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "an open turn must classify busy, got '$out'"
+  codex_event "$f" task_complete turn-1
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "a completed turn must classify idle, got '$out'"
+  codex_event "$f" task_started turn-2
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a steer's new turn must classify busy, got '$out'"
+  codex_event "$f" turn_aborted turn-2 ',"reason":"interrupted"'
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "an interrupted turn must classify idle, got '$out'"
+  codex_event "$f" task_started turn-3
+  codex_event "$f" task_complete turn-3 ',"error":{"message":"exceeded retry limit, last status: 429"}'
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "an API-error turn end must classify idle, got '$out'"
+  # A turn whose own output quotes a lifecycle record is an escaped string and
+  # must not close the real turn.
+  codex_event "$f" task_started turn-4
+  printf '%s\n' '{"type":"response_item","payload":{"type":"message","content":"{\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"turn-4\"}}"}}' >> "$f"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a quoted task_complete must not close the turn, got '$out'"
+  pass "codex's rollout brackets turns: open is busy, completed, interrupted, and errored ends are idle"
+}
+
+test_codex_rollout_folds_incrementally() {
+  local state home wt now f cache out offset
+  state=$(new_state_dir codex-incr); home="$TMP_ROOT/codex-incr/codex"; wt="$TMP_ROOT/codex-incr/wt"
+  now=$(date +%s)
+  codex_meta "$state" t1 "$wt" "$((now - 100))"
+  f=$(codex_rollout "$home" "$((now - 90))" 01a0-main "$wt")
+  cache="$state/t1.codex-session"
+  codex_event "$f" task_started turn-1
+  codex_event "$f" task_complete turn-1
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "the first full fold must classify idle, got '$out'"
+  offset=$(fm_busy_codex_kv "$cache" offset)
+  [ "$offset" = "$(wc -c < "$f" | tr -d ' ')" ] || fail "the fold offset must reach the end of the rollout, got '$offset'"
+  # Scramble the already-folded bytes in place: a resumed fold must not reread them.
+  LC_ALL=C sed -i.bak 's/task_complete/task_started_/' "$f"
+  codex_event "$f" task_started turn-2
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "an appended open turn must classify busy, got '$out'"
+  # A half-written trailing record is not folded and not consumed.
+  printf '{"timestamp":"t","ordinal":9,"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-2"' >> "$f"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a partial close record must not close the turn yet, got '$out'"
+  printf '}}\n' >> "$f"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "the completed close record must close the turn, got '$out'"
+  # A rollout rewritten shorter than the folded offset refolds from 0.
+  : > "$f"
+  codex_event "$f" task_started turn-9
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a truncated rollout must refold from 0, got '$out'"
+  [ "$(fm_busy_codex_kv "$cache" offset)" = "$(wc -c < "$f" | tr -d ' ')" ] \
+    || fail "a refold must restart its offset from the rewritten file"
+  pass "codex folds its rollout incrementally past the cached offset and refolds a truncated file"
+}
+
+test_codex_rollout_binding_picks_the_panes_own_thread() {
+  local state home wt now f out
+  state=$(new_state_dir codex-bind); home="$TMP_ROOT/codex-bind/codex"; wt="$TMP_ROOT/codex-bind/wt"
+  now=$(date +%s)
+  codex_meta "$state" t1 "$wt" "$((now - 100))"
+  # A previous task's pane in the same pooled worktree, killed mid-turn.
+  f=$(codex_rollout "$home" "$((now - 500))" 01a0-old "$wt"); codex_event "$f" task_started old
+  # Same-cwd threads that are not the pane's own: a forked subagent carrying a
+  # copied open turn, a `codex exec` run, and another worktree's pane.
+  f=$(codex_rollout "$home" "$((now - 95))" 01a0-sub "$wt" codex-tui subagent); codex_event "$f" task_started sub
+  f=$(codex_rollout "$home" "$((now - 94))" 01a0-exec "$wt" codex_exec); codex_event "$f" task_started exec
+  f=$(codex_rollout "$home" "$((now - 93))" 01a0-other "$wt-other"); codex_event "$f" task_started other
+  f=$(codex_rollout "$home" "$((now - 90))" 01a0-main "$wt")
+  codex_event "$f" task_started main; codex_event "$f" task_complete main
+  # A reviewer tab opened later in the worker's own worktree.
+  f=$(codex_rollout "$home" "$((now - 50))" 01a0-review "$wt"); codex_event "$f" task_started review
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "the pane's own earliest thread must answer, got '$out'"
+  grep -q 'rollout=.*01a0-main' "$state/t1.codex-session" || fail "binding was not cached to the pane's own thread"
+  # A relaunch mints a fresh spawn_gen and therefore rebinds past it.
+  codex_meta "$state" t1 "$wt" "$((now - 60))"
+  f=$(codex_rollout "$home" "$((now - 55))" 01a0-relaunch "$wt"); codex_event "$f" task_started relaunched
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a relaunch must rebind to its own new thread, got '$out'"
+  pass "codex binds the earliest main interactive thread for the worktree since this incarnation spawned"
+}
+
+test_codex_rollout_waits_for_a_complete_header() {
+  local state home wt now stamp dir f out
+  state=$(new_state_dir codex-partial); home="$TMP_ROOT/codex-partial/codex"; wt="$TMP_ROOT/codex-partial/wt"
+  now=$(date +%s)
+  codex_meta "$state" t1 "$wt" "$((now - 100))"
+  stamp=$(fm_busy_codex_stamp "$((now - 90))")
+  dir="$home/sessions/${stamp:0:4}/${stamp:5:2}/${stamp:8:2}"; mkdir -p "$dir"
+  f="$dir/rollout-$stamp-01a0-main.jsonl"
+  printf '{"timestamp":"t","ordinal":0,"type":"session_meta","payload":{"cwd":"%s"' "$wt" > "$f"
+  # A later, complete header must not advance the watermark past the
+  # half-written one.
+  codex_rollout "$home" "$((now - 80))" 01a0-later "$wt-elsewhere" >/dev/null
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "unknown codex-rollout" ] || fail "a half-written header must not bind, got '$out'"
+  printf ',"originator":"codex-tui","source":"cli","thread_source":"user"}}\n' >> "$f"
+  codex_event "$f" task_started t
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "the completed header must bind on the next read, got '$out'"
+  pass "codex binding never skips a rollout whose header was still being written"
+}
+
+test_codex_rollout_needs_its_metadata() {
+  local state home out
+  state=$(new_state_dir codex-meta); home="$TMP_ROOT/codex-meta/codex"
+  printf 'window=w1\nharness=codex\nspawn_gen=s1.1.1\n' > "$state/t1.meta"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "unknown codex-rollout" ] || fail "no worktree must be unknown, got '$out'"
+  printf 'window=w1\nharness=codex\nworktree=/x\n' > "$state/t1.meta"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "unknown codex-rollout" ] || fail "no spawn_gen must be unknown, got '$out'"
+  pass "codex binding without its worktree or incarnation is unknown, never idle"
+}
+
+test_dormant_idle_is_codex_idle_only() {
+  fm_busy_dormant_idle codex 'idle codex-rollout' || fail "idle codex must be dormant"
+  if fm_busy_dormant_idle codex 'busy codex-rollout'; then fail "busy codex must not be dormant"; fi
+  if fm_busy_dormant_idle codex 'unknown codex-rollout'; then fail "unknown codex must not be dormant"; fi
+  if fm_busy_dormant_idle claude 'idle claude-hook'; then fail "idle claude must not be dormant"; fi
+  pass "only an exactly idle codex worker is dormant at its prompt"
 }
 
 test_kimi_unverified_gate() {
@@ -618,7 +794,13 @@ test_launch_prompt_scoped_to_armed_harnesses
 test_launch_prompt_never_reclassifies_an_advanced_record
 test_launch_prompt_requires_a_captured_tail
 test_grok_regex_isolated
-test_codex_unverified_gate
+test_codex_never_trusts_a_record
+test_codex_rollout_turn_lifecycle
+test_codex_rollout_folds_incrementally
+test_codex_rollout_binding_picks_the_panes_own_thread
+test_codex_rollout_waits_for_a_complete_header
+test_codex_rollout_needs_its_metadata
+test_dormant_idle_is_codex_idle_only
 test_kimi_unverified_gate
 test_cursor_ignores_rendered_and_native_signals
 test_dead_endpoint_overrides

@@ -454,6 +454,13 @@ hash_pane() {
   if command -v md5 >/dev/null 2>&1; then md5 -q; else md5sum | cut -d' ' -f1; fi
 }
 
+# window_is_busy keeps its full verdict, with its task and harness, for
+# dormant_paused_wait below, so the stale triage of the same poll reads the
+# same classification instead of re-reading the harness.
+WINDOW_BUSY_TASK=
+WINDOW_BUSY_HARNESS=
+WINDOW_BUSY_VERDICT=
+
 # window_is_busy: 0 (busy) iff the task's harness is PROVABLY working, through
 # the semantic busy-state contract (bin/fm-busy-lib.sh). Only an exact busy
 # verdict returns 0: idle, unknown, and dead all return 1, so a converted
@@ -467,14 +474,36 @@ window_is_busy() {  # <window> <tail40>
   local w=$1 tail40=$2 task meta verdict
   task=$(window_to_task "$w" "$STATE")
   meta="$STATE/$task.meta"
+  WINDOW_BUSY_TASK=$task
+  WINDOW_BUSY_HARNESS=$(window_harness "$w")
   if [ -n "$task" ] && [ -f "$meta" ]; then
     verdict=$(fm_busy_classify_meta "$meta" "$task" "$STATE" "$tail40")
   else
-    verdict=$(fm_busy_classify "$(window_backend "$w")" "$w" "$(window_harness "$w")" \
+    verdict=$(fm_busy_classify "$(window_backend "$w")" "$w" "$WINDOW_BUSY_HARNESS" \
       "${task:-unknown}" "$STATE" "$tail40")
   fi
+  WINDOW_BUSY_VERDICT=$verdict
   [ "${verdict%% *}" = busy ]
 }
+
+# dormant_paused_wait: 0 when <task>'s latest declared wait is a `paused:`
+# external wait AND its harness is dormant when idle (fm_busy_idle_is_dormant
+# owns which harnesses) AND this poll classified it exactly idle. Such a worker
+# sits at its prompt and will not notice its own wait clearing, so the
+# declaration explains nothing about its silence: every path that would grant
+# a declared pause the long PAUSE_RESURFACE_SECS cadence instead treats it as
+# an undeclared quiet pane, which surfaces on first sight and then through the
+# ordinary STALE_ESCALATE_SECS wedge timer until firstmate re-engages it. A
+# captain-held transfer is untouched: that wait is on a human, not on the
+# worker's own job. Reads only the verdict window_is_busy recorded for the same
+# task this poll; no verdict for this task means not dormant.
+dormant_paused_wait() {  # <task>
+  [ -n "${1:-}" ] && [ "$WINDOW_BUSY_TASK" = "$1" ] || return 1
+  fm_busy_dormant_idle "$WINDOW_BUSY_HARNESS" "$WINDOW_BUSY_VERDICT" || return 1
+  status_is_paused "$(status_declared_wait_line "$STATE/$1.status")"
+}
+
+DORMANT_WAIT_NOTE='idle at its prompt under a declared wait - this worker runtime does not resume itself when the wait clears; re-engage it'
 
 window_kind() {
   local w=$1 meta kind
@@ -1365,6 +1394,7 @@ wedge_wait_evidence() {  # <task> -> one wait_record on stdout
     return 0
   fi
   if status_is_paused "$last"; then
+    dormant_paused_wait "$task" && return 1
     if until=$(status_paused_until "$last"); then
       [ "$(date +%s)" -lt "$until" ] || return 1
     fi
@@ -1796,6 +1826,16 @@ pause_state_class() {  # <window> <task>
     crew_absorb_class "$task"
     return
   fi
+  # A dormant idle worker's pause is no wait at all (dormant_paused_wait). Only
+  # an attributed running pipeline still proves work; a crew-state `paused`
+  # read straight back off the same status line must not grant the cadence.
+  if dormant_paused_wait "$task"; then
+    rm -f "$recheck_file"
+    class=$(crew_absorb_class "$task")
+    [ "$class" = working ] || class=none
+    printf '%s' "$class"
+    return
+  fi
   # Read once past the declared-wait gate and reused by both liveness gates below,
   # so a mate's stale poll costs one metadata scan rather than one per gate, and the
   # far more common no-declaration path above still costs none.
@@ -1959,12 +1999,17 @@ captain_call_stale_bound() {  # <window-key> <task>
 # above): the status line the worker declared, and the backlog hold firstmate
 # recorded once the captain took the work in hand.
 surface_nonterminal_stale() {  # <window> <hash>
-  local win=$1 h=$2 key task last declared=1 bounded=1 throttled=1 until now
+  local win=$1 h=$2 key task last declared=1 bounded=1 throttled=1 until now reason
   key=$(window_key "$win")
   task=$(window_to_task "$win" "$STATE")
   last=$(status_declared_wait_line "$STATE/$task.status")
+  reason="stale: $win"
   STALE_WAIT_DECLARATION=
-  if status_is_paused "$last"; then
+  if dormant_paused_wait "$task"; then
+    # Not a wait (dormant_paused_wait): no throttle and no pause flag, so the
+    # same hash goes on to the ordinary wedge timer. The reason says why.
+    reason="stale: $win ($DORMANT_WAIT_NOTE)"
+  elif status_is_paused "$last"; then
     declared=0
     bounded=0
     STALE_WAIT_DECLARATION=$(stale_wait_declaration "$task")
@@ -1995,7 +2040,7 @@ surface_nonterminal_stale() {  # <window> <hash>
     bounded=0
   fi
   if [ "$throttled" -ne 0 ]; then
-    fm_wake_append stale "$win" "stale: $win" || exit 1
+    fm_wake_append stale "$win" "$reason" || exit 1
     stale_wait_record "$key"
   fi
   printf '%s' "$h" > "$STATE/.stale-$key"
@@ -2019,7 +2064,7 @@ surface_nonterminal_stale() {  # <window> <hash>
     triage_log "absorbed non-terminal stale (declared wait or open captain call already re-surfaced this window): $win"
     return 0
   fi
-  wake "stale: $win"
+  wake "$reason"
 }
 
 # Check and heartbeat cadence must survive actionable exits and restarts: the
@@ -3227,7 +3272,8 @@ EOF
             esac
           else
             task=$(window_to_task "$w" "$STATE")
-            if [ -e "$pf" ] || status_is_paused_or_captain_held "$(status_declared_wait_line "$STATE/$task.status")"; then
+            if ! dormant_paused_wait "$task" \
+              && { [ -e "$pf" ] || status_is_paused_or_captain_held "$(status_declared_wait_line "$STATE/$task.status")"; }; then
               case "$(pause_state_class "$w" "$task")" in
                 paused)  handle_paused_stale "$w" "$task" "$h" ;;
                 working) clear_pause_state "$key"
@@ -3237,6 +3283,9 @@ EOF
                 *)       handle_paused_stale "$w" "$task" "$h" ;;
               esac
             else
+              # A dormant idle worker's pause flag, if one survived from before
+              # this poll could classify it, no longer bounds anything.
+              [ ! -e "$pf" ] || clear_pause_state "$key"
               wedge_timer_check "$w" "$ssf" "non-terminal stale" "$ewf" "$task" "$h"
             fi
           fi

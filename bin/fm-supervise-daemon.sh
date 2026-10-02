@@ -442,6 +442,11 @@ classify_stale() {  # <window> <state> [<span-record> <span-status>]
     return
   fi
   declared=$(status_declared_wait_line "$state/$task.status")
+  if [ -n "$declared" ] && status_is_paused "$declared" \
+    && stale_window_dormant_wait "$win" "$state"; then
+    printf 'self|transient stale (%s): idle at its prompt under a declared wait it cannot resume from by itself: %s' "$win" "$declared"
+    return
+  fi
   if [ -n "$declared" ] && status_is_paused_or_captain_held "$declared"; then
     # A DECLARED external-wait pause or a verified captain-held transfer
     # (fm-classify-lib.sh owns which declarations qualify): an idle pane is
@@ -578,7 +583,10 @@ reconcile_pause_tracking() {  # <window> <state> <last-status-line>
   key=$(_stale_key "$task")
   marker="$state/.subsuper-paused-$key"
   watcher_key=$(_stale_key "$win")
-  if status_is_paused_or_captain_held "$last"; then
+  if status_is_paused "$last" && stale_window_dormant_wait "$win" "$state"; then
+    rm -f "$marker" "$state/.subsuper-pause-until-due-$key" \
+      "$state/.paused-$watcher_key" "$state/.paused-rechecked-$watcher_key" "$state/.paused-resurfaced-$watcher_key"
+  elif status_is_paused_or_captain_held "$last"; then
     stale_marker_remove "$win" "$state"
     pause_marker_record "$win" "$state"
   elif [ -e "$marker" ] || [ -e "$state/.paused-$watcher_key" ]; then
@@ -740,6 +748,25 @@ stale_window_is_busy() {  # <window> <state>
   tail40=$(fm_backend_capture "$backend" "$win" 40 "$label" 2>/dev/null) || return 2
   verdict=$(fm_busy_classify "$backend" "$win" "$harness" "$task" "$state" "$tail40")
   [ "${verdict%% *}" = busy ]
+}
+
+# stale_window_dormant_wait: 0 when the task's latest declared wait is a
+# `paused:` external wait but its harness is dormant when idle and the task
+# classifies exactly idle now (fm_busy_dormant_idle). That worker will not
+# notice its own wait clearing, so the declaration is not a wait here either:
+# classify_stale and the persistence recheck age it like an undeclared quiet
+# pane instead of granting the long pause cadence. Gated on the cheap
+# harness and status reads before any pane capture.
+stale_window_dormant_wait() {  # <window> <state>
+  local win=$1 state=$2 backend harness task tail40 verdict
+  harness=$(task_window_harness "$win" "$state")
+  fm_busy_idle_is_dormant "$harness" || return 1
+  task=$(window_to_task "$win" "$state")
+  status_is_paused "$(status_declared_wait_line "$state/$task.status")" || return 1
+  backend=$(task_window_backend "$win" "$state")
+  tail40=$(fm_backend_capture "$backend" "$win" 40 "fm-$task" 2>/dev/null) || return 1
+  verdict=$(fm_busy_classify "$backend" "$win" "$harness" "$task" "$state" "$tail40")
+  fm_busy_dormant_idle "$harness" "$verdict"
 }
 
 escalate_add() {  # <state> <distilled-item>
@@ -1187,7 +1214,7 @@ _oldest_line_age() {  # <buf> -> seconds since the oldest buffered item first ar
 #  3) heartbeat scan: every HEARTBEAT_SCAN_SECS, grep state/*.status for a
 #     captain-relevant line the per-wake classifier missed and escalate it.
 housekeeping() {  # <state>
-  local state=$1 now due f key task win marker age last max_defer oldest pause_secs marker_epoch until bounded_until pause_reason
+  local state=$1 now due f key task win marker age last max_defer oldest pause_secs marker_epoch until bounded_until pause_reason dormant
   now=$(_now)
   migrate_watcher_pause_markers "$state"
 
@@ -1234,12 +1261,21 @@ housekeeping() {  # <state>
     fi
     task=$(window_to_task "$win" "$state")
     last=$(status_declared_wait_line "$state/$task.status")
-    if [ -n "$last" ] && status_is_paused_or_captain_held "$last"; then
+    dormant=1
+    if [ -n "$last" ] && status_is_paused "$last" && stale_window_dormant_wait "$win" "$state"; then
+      dormant=0
+    elif [ -n "$last" ] && status_is_paused_or_captain_held "$last"; then
       reconcile_pause_tracking "$win" "$state" "$last"
       continue
     fi
     age=$(( now - $(cat "$marker" 2>/dev/null || echo "$now") ))
     [ "$age" -ge "${FM_STALE_ESCALATE_SECS:-$STALE_ESCALATE_SECS_DEFAULT}" ] || continue
+    if [ "$dormant" -eq 0 ]; then
+      if escalate_add "$state" "stale persisted ${age}s (idle at its prompt under a declared wait it cannot resume from by itself): $win"; then
+        stale_marker_remove "$win" "$state"
+      fi
+      continue
+    fi
     stale_window_is_busy "$win" "$state"
     case "$?" in
       0) rm -f "$marker" ;;

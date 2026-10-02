@@ -350,6 +350,7 @@ family_for_basename() {
     fm-cmux-claude-composer-live-e2e.test.sh|\
     fm-composer-matrix-live-e2e.test.sh|\
     fm-composer-codex-idle-live-e2e.test.sh|\
+    fm-codex-busy-live-e2e.test.sh|\
     fm-codex-continuity-live-e2e.test.sh|fm-codex-hook-layer-live-e2e.test.sh|\
     fm-grok-continuity-live-e2e.test.sh|\
     fm-cursor-primary-live-e2e.test.sh|\
@@ -716,6 +717,7 @@ tests/fm-claude-stop-autoarm-live-e2e.test.sh 45
 tests/fm-claude-stop-autoarm.test.sh 60797
 tests/fm-claude-trust.test.sh 10410
 tests/fm-cmux-claude-composer-live-e2e.test.sh 47
+tests/fm-codex-busy-live-e2e.test.sh 47
 tests/fm-codex-continuity-live-e2e.test.sh 71
 tests/fm-codex-hook-layer-live-e2e.test.sh 47
 tests/fm-composer-codex-idle-live-e2e.test.sh 229

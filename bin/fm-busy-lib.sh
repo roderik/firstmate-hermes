@@ -36,8 +36,9 @@
 #                    cancellation emits no Stop, so control invalidates to unknown.
 #   gemini-hook      Gemini agent hooks (BeforeAgent opens; AfterAgent and
 #                    SessionEnd close)
-#   codex-hook, codex-appserver  reserved: Codex, gated by
-#                    fm_busy_codex_semantic_source
+#   codex-hook, codex-appserver  reserved: Codex push sources, gated by
+#                    fm_busy_codex_semantic_source (Codex itself classifies
+#                    through the codex-rollout pull source below)
 #   kimi-wire, kimi-hook  reserved: standalone Kimi, gated by fm_busy_kimi_verified
 # Firstmate-owned sources accepted for every converted adapter:
 #   fm-spawn         the launch-brief turn seeded at spawn
@@ -46,8 +47,8 @@
 #   fm-recovery      a documented recovery reset after relaunch
 # Classifier-only sources (never written into a record):
 #   endpoint-gone, herdr-native, grok-regex, rovo-regex, agy-regex, muse-session-log,
-#   cursor-transcript, missing, malformed, gen-mismatch, source-mismatch,
-#   kimi-unverified, codex-unverified, capture-failed, no-target, launch-prompt
+#   cursor-transcript, codex-rollout, missing, malformed, gen-mismatch,
+#   source-mismatch, kimi-unverified, capture-failed, no-target, launch-prompt
 #
 # Classification (fm_busy_classify): busy | idle | unknown | dead, always
 # with the producing source as the second token. Precedence:
@@ -118,10 +119,12 @@
 # Codex negotiation (fm_busy_codex_appserver_observable,
 # fm_busy_codex_hooks_verified): the approved contract prefers Codex's
 # app-server turn lifecycle with capability negotiation, and sanctions its
-# stable lifecycle hooks as the intermediate. Neither is usable on the
-# installed binary, so Codex classifies unknown codex-unverified rather than
-# falling back to idle, and fm-spawn installs no Codex busy wiring.
-# docs/verification/supervision.md owns the evidence for both probes.
+# stable lifecycle hooks as the intermediate. Neither push source is usable
+# for a worker (worker launches disable Codex's hook layer), so fm-spawn
+# installs no Codex busy wiring and Codex classifies through its own durable
+# rollout instead - a pull source like the muse and cursor logs, folded on
+# demand (fm_busy_codex_rollout). docs/verification/supervision.md owns the
+# evidence for every probe.
 #
 # Sourcing: set -u and set -e safe; no subshell-unfriendly globals.
 
@@ -178,9 +181,9 @@ fm_busy_codex_hooks_verified() {
   return 1
 }
 
-# fm_busy_codex_semantic_source: 0 when ANY verified Codex semantic source
-# exists. fm-spawn arms and wires Codex only behind this gate, and the
-# classifier reports unknown codex-unverified until it opens.
+# fm_busy_codex_semantic_source: 0 when ANY verified Codex PUSH source exists.
+# fm-spawn arms and wires a Codex busy record only behind this gate; until it
+# opens no record is seeded and the rollout pull source classifies Codex.
 fm_busy_codex_semantic_source() {
   fm_busy_codex_appserver_observable || fm_busy_codex_hooks_verified
 }
@@ -864,6 +867,235 @@ fm_busy_cursor_turn_state() {  # <transcript>
   '
 }
 
+# codex rollout busy source
+#
+# Codex persists an append-only JSONL rollout per thread at
+# ${CODEX_HOME:-~/.codex}/sessions/YYYY/MM/DD/rollout-<local-time>-<thread-id>.jsonl
+# and brackets every turn there. Verified live on codex-cli 0.159.0:
+#   {"type":"session_meta","payload":{...,"cwd":"<abs>","originator":"codex-tui",...}}  <- line 1
+#   {"type":"event_msg","payload":{"type":"task_started","turn_id":"<id>",...}}         <- turn opens
+#   {"type":"event_msg","payload":{"type":"task_complete","turn_id":"<id>",...}}        <- turn closes
+#   {"type":"event_msg","payload":{"type":"turn_aborted","turn_id":"<id>",...}}         <- interrupt closes
+# An API-error turn end is a task_complete carrying an error, and an Escape
+# interrupt is a turn_aborted, so like the muse and cursor logs this source
+# covers the abnormal turn ends that Codex's hooks never could. Nothing is
+# installed and no trust grant is needed: Codex writes the rollout on its own,
+# which matters because worker launches disable Codex's hook layer outright.
+#
+# Binding needs no sidecar: the task's own metadata already names the worktree
+# Codex records as its cwd and the spawn_gen incarnation token whose s<epoch>
+# prefix is minted before the pane launches. The pane owns the EARLIEST main
+# interactive rollout for that cwd created at or after that second. Earliest,
+# not newest, is deliberate: a pooled worktree can hold other Codex panes (a
+# reviewer tab opened in the worker's workspace, a leftover pane of an earlier
+# task in the same slot), and any of them starts later than the worker it sits
+# beside, while a relaunch mints a fresh spawn_gen and so a fresh lower bound.
+# A forked subagent thread (thread_source subagent) copies its parent's open
+# turn into its own rollout and a `codex exec` run carries originator
+# codex_exec, so both are excluded and only the pane's own TUI thread folds.
+#
+# The binding is cached in state/<id>.codex-session against the spawn_gen it
+# was resolved for. Rollout file names sort by creation time, so an unbound
+# scan resumes past a scanned= watermark rather than re-reading every header;
+# the scan stops at a header still being written, so nothing later binds
+# ahead of it.
+fm_busy_codex_cache_path() {  # <state-dir> <id>
+  printf '%s/%s.codex-session' "$1" "$2"
+}
+
+fm_busy_codex_sessions_root() {
+  printf '%s/sessions' "${CODEX_HOME:-$HOME/.codex}"
+}
+
+# fm_busy_codex_kv: the last value of <key> in a key=value file, or failure.
+fm_busy_codex_kv() {  # <file> <key>
+  local value
+  [ -f "$1" ] || return 1
+  value=$(LC_ALL=C awk -v k="$2" 'index($0, k "=") == 1 { v = substr($0, length(k) + 2) } END { print v }' "$1")
+  [ -n "$value" ] || return 1
+  printf '%s' "$value"
+}
+
+# fm_busy_codex_stamp: <epoch> in the local-time shape Codex names rollouts by.
+fm_busy_codex_stamp() {  # <epoch>
+  date -r "$1" '+%Y-%m-%dT%H-%M-%S' 2>/dev/null || date -d "@$1" '+%Y-%m-%dT%H-%M-%S' 2>/dev/null
+}
+
+# fm_busy_codex_header_matches: 0 when <header-line> is the session_meta of a
+# main interactive thread whose cwd is exactly <workspace>. The quoted keys are
+# matched unescaped, which no JSON string value can contain, so a path or a
+# prompt quoted inside the header text cannot satisfy them.
+fm_busy_codex_header_matches() {  # <header-line> <workspace>
+  case "$1" in *'"type":"session_meta"'*) ;; *) return 1 ;; esac
+  case "$1" in *"\"cwd\":\"$2\""*) ;; *) return 1 ;; esac
+  case "$1" in *'"originator":"codex-tui"'*) ;; *) return 1 ;; esac
+  case "$1" in *'"thread_source":"subagent"'* | *'"source":{"subagent"'*) return 1 ;; esac
+  return 0
+}
+
+# fm_busy_codex_rollout: the ONE rollout this task's pane owns, or failure.
+fm_busy_codex_rollout() {  # <state-dir> <id>
+  local state=$1 id=$2 meta cache workspace gen epoch root bound floor scanned='' rollout=''
+  local cached_gen day file name header
+  meta="$state/$id.meta"
+  workspace=$(fm_busy_codex_kv "$meta" worktree) || return 1
+  gen=$(fm_busy_codex_kv "$meta" spawn_gen) || return 1
+  case "$workspace" in /*) ;; *) return 1 ;; esac
+  case "$workspace" in *[\"\\]*) return 1 ;; esac
+  epoch=${gen#s}; epoch=${epoch%%.*}
+  case "$epoch" in '' | *[!0-9]*) return 1 ;; esac
+  cache=$(fm_busy_codex_cache_path "$state" "$id")
+  if cached_gen=$(fm_busy_codex_kv "$cache" spawn_gen) && [ "$cached_gen" = "$gen" ]; then
+    if rollout=$(fm_busy_codex_kv "$cache" rollout); then
+      # A bound rollout that has since vanished proves nothing, and the
+      # watermark already sits past it, so it is never rebound to a later one.
+      [ -f "$rollout" ] || return 1
+      printf '%s' "$rollout"
+      return 0
+    fi
+    rollout=''
+    scanned=$(fm_busy_codex_kv "$cache" scanned || true)
+  fi
+  root=$(fm_busy_codex_sessions_root)
+  [ -d "$root" ] || return 1
+  bound=$(fm_busy_codex_stamp "$epoch") || return 1
+  floor="${bound:0:4}/${bound:5:2}/${bound:8:2}"
+  bound="rollout-$bound"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    name=${file##*/}
+    # A header still being written may be the pane's own thread, so the scan
+    # stops before it: the watermark stays put and nothing later can bind
+    # ahead of it.
+    IFS= read -r header < "$file" 2>/dev/null || break
+    scanned=$name
+    if fm_busy_codex_header_matches "$header" "$workspace"; then
+      rollout=$file
+      break
+    fi
+  done <<EOF
+$(for day in "$root"/*/*/*/; do
+    day=${day%/}
+    printf '%s\n' "${day#"$root"/}"
+  done | LC_ALL=C awk -v f="$floor" '$0 >= f' | LC_ALL=C sort | while IFS= read -r day; do
+    for file in "$root/$day"/rollout-*.jsonl; do
+      [ -f "$file" ] && printf '%s\n' "$file"
+    done
+  done | LC_ALL=C awk -F/ -v lo="$bound" -v seen="$scanned" '$NF >= lo && (seen == "" || $NF > seen)')
+EOF
+  if {
+    printf 'spawn_gen=%s\n' "$gen"
+    [ -z "$scanned" ] || printf 'scanned=%s\n' "$scanned"
+    [ -z "$rollout" ] || printf 'rollout=%s\n' "$rollout"
+  } > "$cache.tmp.$$" 2>/dev/null; then
+    mv -f -- "$cache.tmp.$$" "$cache" 2>/dev/null || rm -f "$cache.tmp.$$"
+  else
+    rm -f "$cache.tmp.$$"
+  fi
+  [ -n "$rollout" ] || return 1
+  printf '%s' "$rollout"
+}
+
+# fm_busy_codex_turn_state: fold one rollout to busy | settled | none.
+#   busy     some turn_id opened by task_started has no task_complete or
+#            turn_aborted after it
+#   settled  every opened turn closed
+#   none     the rollout holds no turn lifecycle records at all
+# The anchor is the exact structural prefix through "turn_id", for the same
+# reason muse's fold anchors on its run prefix: a turn's own text quoting
+# task_complete is an escaped string and can never match it.
+# With [cache] (the task's state/<id>.codex-session binding) the fold is
+# incremental: the cache carries the rollout it folded, the byte offset folded
+# through (always the end of a complete line), and the open turn ids, so a
+# rollout that grows to hundreds of MB is read once and then only past that
+# offset. A different rollout, or a file now shorter than the offset, refolds
+# from 0.
+fm_busy_codex_turn_state() {  # <rollout> [cache]
+  local log=$1 cache=${2-} size offset=0 seen=0 open='' out tmp verdict used
+  [ -f "$log" ] || return 1
+  if [ -n "$cache" ] && [ "$(fm_busy_codex_kv "$cache" folded 2>/dev/null)" = "$log" ]; then
+    offset=$(fm_busy_codex_kv "$cache" offset || echo 0)
+    seen=$(fm_busy_codex_kv "$cache" seen || echo 0)
+    open=$(fm_busy_codex_kv "$cache" open || true)
+    case "$offset$seen" in *[!0-9]*) offset=0; seen=0; open='' ;; esac
+  fi
+  size=$(wc -c < "$log" 2>/dev/null | tr -d ' ') || return 1
+  case "$size" in '' | *[!0-9]*) return 1 ;; esac
+  if [ "$offset" -gt "$size" ]; then
+    offset=0; seen=0; open=''
+  fi
+  out=$(tail -c +"$((offset + 1))" "$log" | head -c "$((size - offset))" | LC_ALL=C awk \
+    -v n="$((size - offset))" -v seen="$seen" -v open="$open" '
+    function fold(line,    i, ev, pre, p, rest, q) {
+      if (index(line, "\"payload\":{\"type\":\"t") == 0) return
+      for (i = 1; i <= 3; i++) {
+        ev = (i == 1 ? "task_started" : (i == 2 ? "task_complete" : "turn_aborted"))
+        pre = "\"payload\":{\"type\":\"" ev "\",\"turn_id\":\""
+        p = index(line, pre)
+        if (p == 0) continue
+        rest = substr(line, p + length(pre))
+        q = index(rest, "\"")
+        if (q < 2) return
+        seen = 1
+        if (i == 1) live[substr(rest, 1, q - 1)] = 1
+        else delete live[substr(rest, 1, q - 1)]
+        return
+      }
+    }
+    BEGIN {
+      k = split(open, ids, " ")
+      for (j = 1; j <= k; j++) live[ids[j]] = 1
+    }
+    NR > 1 { fold(prev); used += length(prev) + 1 }
+    { prev = $0 }
+    END {
+      if (NR > 0 && used + length(prev) + 1 <= n) { fold(prev); used += length(prev) + 1 }
+      ids_out = ""
+      for (t in live) ids_out = ids_out (ids_out == "" ? "" : " ") t
+      state = !seen ? "none" : (ids_out == "" ? "settled" : "busy")
+      print state; print used + 0; print seen + 0; print ids_out
+    }
+  ') || return 1
+  { IFS= read -r verdict; IFS= read -r used; IFS= read -r seen; IFS= read -r open; } <<EOF
+$out
+EOF
+  [ -n "$verdict" ] || return 1
+  if [ -n "$cache" ] && [ -f "$cache" ]; then
+    tmp="$cache.tmp.$$"
+    if {
+      LC_ALL=C grep -v -e '^folded=' -e '^offset=' -e '^seen=' -e '^open=' "$cache"
+      printf 'folded=%s\noffset=%s\nseen=%s\n' "$log" "$((offset + used))" "$seen"
+      [ -z "$open" ] || printf 'open=%s\n' "$open"
+    } > "$tmp" 2>/dev/null; then
+      mv -f -- "$tmp" "$cache" 2>/dev/null || rm -f "$tmp"
+    else
+      rm -f "$tmp"
+    fi
+  fi
+  printf '%s\n' "$verdict"
+}
+
+# fm_busy_idle_is_dormant: 0 when <harness> is verified to stay idle at its
+# prompt until new input arrives, even after a background job it started has
+# finished. Such a worker cannot end its own declared wait: once it is idle,
+# only a steer re-engages it, so supervision must not grant its `paused:`
+# declaration the long recheck cadence. Codex: verified live on codex-cli
+# 0.159.0 (docs/verification/supervision.md "Semantic busy state").
+fm_busy_idle_is_dormant() {  # <harness>
+  case "${1:-}" in
+    codex*) return 0 ;;
+  esac
+  return 1
+}
+
+# fm_busy_dormant_idle: 0 when <harness> is dormant when idle and <verdict>
+# (a fm_busy_classify line) is exactly idle. Any other verdict, unknown
+# included, keeps a declared wait on its ordinary cadence.
+fm_busy_dormant_idle() {  # <harness> <verdict>
+  fm_busy_idle_is_dormant "$1" || return 1
+  [ "${2%% *}" = idle ]
+}
+
 # fm_busy_grok_tail_busy: the Grok-only temporary rendered-tail fallback.
 # Consumes the tail on stdin; 0 when Grok's verified busy signature matches.
 # FM_BUSY_REGEX still globally overrides the signature, mirroring the
@@ -996,9 +1228,8 @@ fm_busy_gemini_launch_prompt_tail() {
 # or fail when this harness has none. Consumes the tail on stdin. Scoped to
 # exactly the harnesses fm-spawn.sh arms with the fm-spawn busy source
 # (claude*, opencode*, pi, pi-signed, omp, gemini) since only those can ever
-# read a pinned "busy fm-spawn" record; codex and standalone Kimi already
-# classify unknown before a record is ever consulted, and opencode ships no
-# trust dialog at all.
+# read a pinned "busy fm-spawn" record; codex and standalone Kimi classify
+# before a record is ever consulted, and opencode ships no trust dialog at all.
 fm_busy_launch_prompt_parked() {  # <harness>
   case "${1:-}" in
     claude*) fm_busy_claude_launch_prompt_tail ;;
@@ -1028,10 +1259,20 @@ fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
       fi
       ;;
     codex*)
-      if ! fm_busy_codex_semantic_source; then
-        printf 'unknown codex-unverified'
+      # Semantic, on demand: fold this task's bound rollout. An open turn is
+      # positive proof of a turn in flight and a fully closed rollout is a
+      # finished turn. Every other outcome - no binding metadata, no rollout
+      # yet, an unreadable or turn-free file - is unknown, never idle.
+      if ! log=$(fm_busy_codex_rollout "$state" "$id"); then
+        printf 'unknown codex-rollout'
         return 0
       fi
+      case "$(fm_busy_codex_turn_state "$log" "$(fm_busy_codex_cache_path "$state" "$id")" 2>/dev/null)" in
+        busy) printf 'busy codex-rollout' ;;
+        settled) printf 'idle codex-rollout' ;;
+        *) printf 'unknown codex-rollout' ;;
+      esac
+      return 0
       ;;
     cursor*)
       # Semantic, on demand: fold this task's bound conversation transcript. A

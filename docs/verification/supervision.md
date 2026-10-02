@@ -231,11 +231,11 @@ Each pass polled `state/<id>.busy-state` while a real turn ran.
 | omp | 18.1.11 | Extension `agent_start` / `agent_end` without `willContinue` | Live Herdr scout on `openai-codex/gpt-6-astra` (2026-09-05): the spawn seed `busy source=fm-spawn`, then `busy source=omp-ext event=agent-start`, then `idle source=omp-ext event=agent-end` at the natural end of the brief; a steer through `fm-send` reopened `busy … agent-start`, and a control-plane interrupt closed it with `idle … agent-end` (omp fires `agent_end` on an interrupted turn). `ctx.isIdle()` is deliberately not consulted because it reads false at a natural TUI `agent_end`. |
 | OpenCode | 1.17.18 | Plugin `session.status` | In a real TUI pane: seed, then `busy source=opencode-plugin event=session-busy`, then `idle source=opencode-plugin event=session-status-idle`. |
 | Claude | 2.1.220 (Claude Code) | Hooks `UserPromptSubmit`, `Stop`, `StopFailure`, `SessionEnd` | `UserPromptSubmit` fired for the argv launch prompt and each steer, and `Stop` closed every completed turn. A mid-stream Escape interrupt fired no closing hook, which is why the firstmate-controlled clear exists. `StopFailure` and `SessionEnd` are wired from the four hook names present in the installed binary; only the abnormal paths they cover were not reproduced live. |
-| Codex | codex-cli 0.145.0 | None usable | See below; classifies `unknown codex-unverified`. |
+| Codex | codex-cli 0.159.0 and 0.160.0 | Its own session rollout: `task_started` opens, `task_complete` or `turn_aborted` closes | See below; push sources stay unusable, so the rollout is a pull source with no armed record. |
 | Kimi (standalone) | not installed | None usable | No binary on `PATH`, so the gate stays closed and it classifies `unknown kimi-unverified`. |
 | Grok | 0.2.112 | Isolated rendered-tail fallback | Retained unconverted; the approved audit could not credit a live structured-lifecycle run. |
 
-Codex was probed two ways, both refused:
+Codex's push sources were probed two ways on 2026-07-28 with codex-cli 0.145.0, and both were refused:
 
 ```sh
 codex app-server daemon start
@@ -243,9 +243,42 @@ codex exec --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-
 ```
 
 The daemon refused with `managed standalone Codex install not found`, and an interactive TUI worker neither starts nor attaches to the app-server control socket, so no client can observe its turns.
-In this 2026-07-28 Codex 0.145.0 semantic-busy probe, Firstmate-written lifecycle project hooks under `<worktree>/.codex/hooks.json` fired for neither an interactive pane whose directory trust was granted nor `codex exec`, in both cases with `--dangerously-bypass-hook-trust`, while an untracked global probe fired in the same runs; Firstmate does not ship, install, recommend, or depend on that global path.
-Codex also exposes no `StopFailure` hook, so an API-error turn end would need separate coverage even after hook discovery works.
-The app-server protocol schema does define the required lifecycle (`turn/started`, plus a `turn/completed` status of `completed`, `interrupted`, `failed`, or `inProgress`), so the gate is a reachability problem rather than a protocol gap.
+Firstmate-written lifecycle project hooks under `<worktree>/.codex/hooks.json` fired for neither an interactive pane nor `codex exec`, while an untracked global probe fired in the same runs; Firstmate does not ship, install, recommend, or depend on that global path.
+Worker launches now disable Codex's hook layer outright, and Codex exposes no `StopFailure` hook, so hooks remain unusable as a worker busy source whatever their trust state.
+
+Codex's own session rollout is the source instead, verified live on 2026-10-02 with codex-cli 0.159.0 against a real worker launched with the crewmate flags (`--dangerously-bypass-approvals-and-sandbox --disable hooks -c notify=...`) in a guarded Herdr lab, classified by the real `fm_busy_classify` every second:
+
+```text
+07:34:32 [phase1-foreground] t+0s verdict: unknown codex-rollout turns=0
+07:34:35 [phase1-foreground] t+3s verdict: busy codex-rollout turns=1
+07:35:07 [phase1-foreground] t+33s verdict: idle codex-rollout turns=1
+07:36:08 [phase2-background] t+0s verdict: busy codex-rollout turns=2
+07:36:19 [phase2-background] t+11s verdict: idle codex-rollout turns=2
+07:37:51 [phase2-background] final verdict: idle codex-rollout turns=2
+```
+
+Phase one ran `sleep 20` in the foreground and read busy for the whole turn; phase two ran `sleep 30 && echo FMCX-BG-DONE &` and ended its turn, and no new turn started in the 90 seconds after that job finished.
+That second observation is the dormant-when-idle fact `fm_busy_idle_is_dormant` records: an idle Codex worker does not resume itself when its own background job finishes, so supervision ages its declared `paused:` wait like an undeclared quiet worker.
+The real `bin/fm-watch.sh` was then run over that real idle Codex pane in the same guarded lab, after the worker declared `paused: waiting on a background sleep job; resume when it finishes` and its first status wake was acknowledged; it surfaced the pane on its second poll instead of granting the long pause cadence:
+
+```text
+07:43:43 watcher (second) exit=0 reason: stale: fm-lab-fm-codex-busy-vi-1002803-15375:w1:p1 (idle at its prompt under a declared wait - this worker runtime does not resume itself when the wait clears; re-engage it) | verdict now: idle codex-rollout
+07:44:12 watcher (third) exit=0 reason: stale: fm-lab-fm-codex-busy-vi-1002803-15375:w1:p1 (idle 23s, possible wedge, escalation 1) | verdict now: idle codex-rollout
+```
+
+The third run re-armed after acknowledging that surface, with `FM_STALE_ESCALATE_SECS=20` so the lab stayed short, and the same unchanged pane escalated on the ordinary wedge timer rather than the four-hour `FM_PAUSE_RESURFACE_SECS` cadence a declared pause otherwise earns.
+
+The binding was also checked read-only against the 41 Codex tasks of a live home: every task bound a rollout, and each of the 38 whose Codex was still running bound exactly the rollout that process held open, while the earliest-after-spawn rule kept a finished task on its own log after its pooled worktree had been reused by a newer task.
+
+`FM_CODEX_BUSY_LIVE=1 tests/fm-codex-busy-live-e2e.test.sh` is the command that refreshes this record: it drives the installed Codex through a foreground turn, an Escape interrupt, and a background job, and fails naming the version if any of the three stops holding.
+Its 2026-10-02 run, on codex-cli 0.160.0 after Codex auto-updated, passed all three:
+
+```text
+ok - codex (codex-cli 0.160.0): a foreground turn classifies busy from its rollout, then idle when it completes
+ok - codex (codex-cli 0.160.0): an Escape interrupt closes the turn with turn_aborted and classifies idle
+ok - codex (codex-cli 0.160.0): idle Codex stays at its prompt after its background job finishes (dormant when idle)
+ok - live codex busy guard verified 3 live behavior(s)
+```
 
 Deterministic entry points:
 
