@@ -1,0 +1,35 @@
+### S7 rollout check, repo microsoft/vscode, failing (action_required) workflow + a succeeding one
+-- first cycle
+Code OSS action_required: https://github.com/microsoft/vscode/actions/runs/36980618856
+exit=0
+-- second cycle (same runs must not wake again)
+exit=0
+
+### S8 stall check via bin/fm-pr-stall-check.sh against jqlang/jq (real gh search, merges forced dry-run + guarded)
+pr-stall: no live owner for https://github.com/jqlang/jq/pull/3596 (conflict); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3628 (red:disabled,disabled,dist,installed,linux,linux (amd64),macos (amd64),macos (arm64),windows (amd64),windows (arm64),windows (i386)); assign a babysit lane
+exit=0
+-- persisted seen-state:
+{"k":"3649:6c270fdd00:green","steered":0,"escalated":false}
+{"k":"3596:aad2317995:conflict","steered":0,"escalated":true}
+{"k":"3628:917d6db30d:red:disabled,disabled,dist,installed,linux,linux (amd64),macos (amd64),macos (arm64),windows (amd64),windows (arm64),windows (i386)","steered":0,"escalated":true}
+{"k":"3645:f0102d0081:green","steered":0,"escalated":false}
+-- immediate rerun is skipped by cadence (no output, no gh calls):
+exit=0 gh-calls-added=0
+
+### S9 malformed steering (non-object and bad templates) does not crash the live sweep
+pr-stall: no live owner for https://github.com/jqlang/jq/pull/3596 (conflict); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3628 (red:disabled,disabled,dist,installed,linux,linux (amd64),macos (amd64),macos (arm64),windows (amd64),windows (arm64),windows (i386)); assign a babysit lane
+exit=0
+pr-stall: no live owner for https://github.com/jqlang/jq/pull/3596 (conflict); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3628 (red:disabled,disabled,dist,installed,linux,linux (amd64),macos (amd64),macos (arm64),windows (amd64),windows (arm64),windows (i386)); assign a babysit lane
+exit=0
+real merge calls during all sweeps: 0
+
+### S10 missing config fails closed with a diagnostic
+fleet watch configuration is unavailable: /tmp/fm-lab.iW7HXF/config/fleet-watch.json
+fleet PR stall watch is not configured
+exit=0
+fleet watch configuration is unavailable: /tmp/fm-lab.iW7HXF/config/fleet-watch.json
+release rollout watch is not configured
+exit=0
+fleet watch configuration is unavailable: /tmp/fm-lab.iW7HXF/config/fleet-watch.json
+error: configure repo in fleet-watch.json or pass owner/name
+exit=2

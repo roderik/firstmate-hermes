@@ -1,0 +1,73 @@
+### Lab home: /tmp/fm-lab.iW7HXF (no FM_FLEET_GH_BIN, no overrides; config copied from docs/examples and edited)
+{
+  "repo": "jqlang/jq",
+  "authors": [
+    "HarmfulBreeze",
+    "thalha-a9",
+    "cuishuang",
+    "davidscottpope-gif"
+  ],
+  "required_test_checks": [],
+  "cadence_seconds": 300,
+  "thresholds": {
+    "budget_seconds": 24,
+    "renudge_seconds": 2700,
+    "escalate_seconds": 7200
+  },
+  "takeovers": {},
+  "remote_lanes": [],
+  "steering": {
+    "behind": "{url} is behind {base}. Merge {base} into the branch, push, and keep watching the pull request."
+  },
+  "rollout_workflows": [
+    {
+      "name": "Code OSS",
+      "branch": "feature/335704-custom-editor-language-selectors"
+    }
+  ]
+}
+
+### S1 eligibility with default binary (gh), empty required_test_checks: jqlang/jq#3649
+true jqlang/jq#3649 author=HarmfulBreeze head=6c270fdd00ac777edec501889d28c371003a4c7d
+eligible: https://github.com/jqlang/jq/pull/3649
+exit=0
+
+### S2 eligibility refuses conflicting PR jqlang/jq#3596 (DIRTY)
+false jqlang/jq#3596
+not eligible: https://github.com/jqlang/jq/pull/3596
+  - mergeable is "CONFLICTING", want MERGEABLE
+exit=1
+
+### S2b eligibility refuses non-allowlisted author jqlang/jq#3631 (itchyny)
+false jqlang/jq#3631
+not eligible: https://github.com/jqlang/jq/pull/3631
+  - author "itchyny" not in fleet allowlist (HarmfulBreeze,thalha-a9,cuishuang,davidscottpope-gif)
+  - 3 unresolved review thread(s)
+exit=1
+
+### S3 named required check that does not exist on the head refuses
+false jqlang/jq#3649
+not eligible: https://github.com/jqlang/jq/pull/3649
+  - required test check "Nonexistent Required Check" has no passing run on the head (missing or skipped only)
+exit=1
+
+### S4 any-eligible watch (default gh)
+https://github.com/jqlang/jq/pull/3649
+https://github.com/jqlang/jq/pull/3645
+exit=0
+
+### S5 hold 3649 in $FM_HOME/config/fleet-merge-hold.txt, rerun any-eligible
+https://github.com/jqlang/jq/pull/3645
+exit=0
+
+### S6 guarded admin merge, dry run, no merge_method -> repository-allowed method
+eligible: https://github.com/jqlang/jq/pull/3649
+true jqlang/jq#3649 author=HarmfulBreeze head=6c270fdd00ac777edec501889d28c371003a4c7d
+dry-run: would admin-merge https://github.com/jqlang/jq/pull/3649 with --squash
+exit=0
+
+### S6b guarded admin merge refuses ineligible PR before any merge call
+not eligible: https://github.com/jqlang/jq/pull/3596
+  - mergeable is "CONFLICTING", want MERGEABLE
+exit=1
+merge calls in guard log: 0

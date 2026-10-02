@@ -1,0 +1,29 @@
+## config (no required_test_checks, no merge_method)
+{
+  "repo": "jqlang/jq",
+  "authors": [
+    "itchyny"
+  ]
+}
+## merge-eligible jqlang/jq#3631
+false jqlang/jq#3631
+not eligible: https://github.com/jqlang/jq/pull/3631
+  - 3 unresolved review thread(s)
+exit=1
+## any-eligible (fleet-wide watch condition)
+exit=1
+## hold file excludes PR
+exit=1
+## guarded admin merge DRY RUN (merge method resolved from repo settings)
+not eligible: https://github.com/jqlang/jq/pull/3631
+  - 3 unresolved review thread(s)
+exit=1
+## guarded admin merge DRY RUN with merge_method=rebase in config
+not eligible: https://github.com/jqlang/jq/pull/3631
+  - 3 unresolved review thread(s)
+exit=1
+## admin merge refuses non-allowlisted author (no merge attempted)
+not eligible: https://github.com/jqlang/jq/pull/3631
+  - author "itchyny" not in fleet allowlist (someone-else)
+  - 3 unresolved review thread(s)
+exit=1

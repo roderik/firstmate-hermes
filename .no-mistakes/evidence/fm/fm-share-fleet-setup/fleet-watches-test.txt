@@ -1,0 +1,6 @@
+eligible: https://github.com/owner/repo/pull/7
+eligible: https://github.com/owner/repo/pull/7
+eligible: https://github.com/owner/repo/pull/7
+eligible: https://github.com/owner/repo/pull/7
+eligible: https://github.com/owner/repo/pull/7
+ok - fleet watch configuration and checks

@@ -1,0 +1,20 @@
+## config
+{
+  "repo": "vercel/next.js",
+  "authors": [
+    "x"
+  ],
+  "rollout_workflows": [
+    {
+      "name": "Update Rspack test manifest",
+      "branch": "canary"
+    }
+  ]
+}
+## rollout check cycle 1 (latest completed run failed)
+Update Rspack test manifest failure: https://github.com/vercel/next.js/actions/runs/36976946703
+exit=0
+## seen state
+.watch-seen-update-rspack-test-manifest: 36976946703
+## rollout check cycle 2 (same run: no repeat wake)
+exit=0

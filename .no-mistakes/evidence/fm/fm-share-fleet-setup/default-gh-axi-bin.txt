@@ -1,0 +1,9 @@
+$ (default FM_FLEET_GH_BIN=gh-axi) bin/fm-pr-fleet-merge-eligible.sh https://github.com/roderik/firstmate-hermes/pull/9
+error: graphql read failed for roderik/firstmate-hermes#9
+exit=2
+
+$ (default gh-axi) bin/fm-pr-fleet-any-eligible.sh
+exit=2
+
+$ (default gh-axi) bin/fm-release-rollout-check.sh
+exit=0

@@ -1,0 +1,153 @@
+## eligibility on merged PR #9 (real GitHub, author allowlisted)
+false roderik/firstmate-hermes#9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - mergeable is "UNKNOWN", want MERGEABLE
+exit=1
+
+## eligibility with FM_FLEET_PR_AUTHORS=someone-else
+false roderik/firstmate-hermes#9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - author "roderik" not in fleet allowlist (someone-else)
+  - mergeable is "UNKNOWN", want MERGEABLE
+exit=1
+
+## guarded admin merge on ineligible PR (no merge call expected)
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - mergeable is "UNKNOWN", want MERGEABLE
+exit=1
+-- gh calls made:
+api graphql -f query=...
+  repository(owner:$o, name:$n) {
+    defaultBranchRef { name }
+    pullRequest(number:$number) {
+      number
+      url
+      isDraft
+      baseRefName
+      mergeable
+      mergeStateStatus
+      reviewDecision
+      author { login }
+      commits(last: 1) {
+        nodes {
+          commit {
+            oid
+            statusCheckRollup {
+              state
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name conclusion }
+                  ... on StatusContext { context state }
+                }
+              }
+            }
+          }
+        }
+      }
+      reviewThreads(first: 100) {
+        nodes { isResolved }
+      }
+    }
+  }
+} -f o=roderik -f n=firstmate-hermes -F number=9
+api graphql -f query=...
+  repository(owner:$o, name:$n) {
+    defaultBranchRef { name }
+    pullRequest(number:$number) {
+      number
+      url
+      isDraft
+      baseRefName
+      mergeable
+      mergeStateStatus
+      reviewDecision
+      author { login }
+      commits(last: 1) {
+        nodes {
+          commit {
+            oid
+            statusCheckRollup {
+              state
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name conclusion }
+                  ... on StatusContext { context state }
+                }
+              }
+            }
+          }
+        }
+      }
+      reviewThreads(first: 100) {
+        nodes { isResolved }
+      }
+    }
+  }
+} -f o=roderik -f n=firstmate-hermes -F number=9
+api graphql -f query=...
+  repository(owner:$o, name:$n) {
+    defaultBranchRef { name }
+    pullRequest(number:$number) {
+      number
+      url
+      isDraft
+      baseRefName
+      mergeable
+      mergeStateStatus
+      reviewDecision
+      author { login }
+      commits(last: 1) {
+        nodes {
+          commit {
+            oid
+            statusCheckRollup {
+              state
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name conclusion }
+                  ... on StatusContext { context state }
+                }
+              }
+            }
+          }
+        }
+      }
+      reviewThreads(first: 100) {
+        nodes { isResolved }
+      }
+    }
+  }
+} -f o=roderik -f n=firstmate-hermes -F number=9
+0
+
+## any-eligible (repo has 0 open PRs)
+exit=1
+
+## rollout check run 1
+exit=0
+/tmp/fm-lab.TUmsSM/state/.watch-seen-ci: 36966902681
+## rollout check run 2
+exit=0
+
+## stall check run 1 / run 2 (cadence)
+exit=0
+1790927228
+{}
+exit=0 gh-calls-on-second-run=0
+
+## missing config
+fleet watch configuration is unavailable: /tmp/fm-lab.TUmsSM/config/fleet-watch.json
+fleet PR stall watch is not configured
+exit=0
+fleet watch configuration is unavailable: /tmp/fm-lab.TUmsSM/config/fleet-watch.json
+release rollout watch is not configured
+exit=0
+fleet watch configuration is unavailable: /tmp/fm-lab.TUmsSM/config/fleet-watch.json
+false roderik/firstmate-hermes#9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - author "roderik" not in fleet allowlist ()
+  - mergeable is "UNKNOWN", want MERGEABLE
+exit=1

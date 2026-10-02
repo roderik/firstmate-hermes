@@ -1,0 +1,98 @@
+++ echo '## config'
+## config
+++ cat /tmp/fm-fleet-lab.3UBLEX/config/fleet-watch.json
+{
+  "repo": "roderik/firstmate-hermes",
+  "authors": [
+    "roderik"
+  ],
+  "required_test_checks": [],
+  "cadence_seconds": 300,
+  "thresholds": {
+    "budget_seconds": 24,
+    "renudge_seconds": 2700,
+    "escalate_seconds": 7200
+  },
+  "takeovers": {},
+  "remote_lanes": [],
+  "steering": {
+    "behind": "{url} is behind {base}. Merge {base} into the branch, push, and keep watching the pull request."
+  },
+  "rollout_workflows": [
+    {
+      "name": "CI",
+      "branch": "main"
+    },
+    {
+      "name": "CI",
+      "branch": "fm/fm-teardown-review-of-and-startup"
+    }
+  ]
+}
+++ echo '## which gh / gh-axi'
+## which gh / gh-axi
+++ command -v gh gh-axi
+/usr/bin/gh
+/home/roderik/.local/bin/gh-axi
+++ for pr in 9 7
+++ echo '## merge-eligible PR 9 (no env overrides)'
+## merge-eligible PR 9 (no env overrides)
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-fleet-merge-eligible.sh 9
+false roderik/firstmate-hermes#9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - mergeable is "UNKNOWN", want MERGEABLE
+++ echo exit=1
+exit=1
+++ for pr in 9 7
+++ echo '## merge-eligible PR 7 (no env overrides)'
+## merge-eligible PR 7 (no env overrides)
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-fleet-merge-eligible.sh 7
+false roderik/firstmate-hermes#7
+not eligible: https://github.com/roderik/firstmate-hermes/pull/7
+  - mergeable is "UNKNOWN", want MERGEABLE
+++ echo exit=1
+exit=1
+++ echo '## merge-eligible URL form'
+## merge-eligible URL form
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-fleet-merge-eligible.sh https://github.com/roderik/firstmate-hermes/pull/9
+false roderik/firstmate-hermes#9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - mergeable is "UNKNOWN", want MERGEABLE
+++ echo exit=1
+exit=1
+++ echo '## any-eligible'
+## any-eligible
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-fleet-any-eligible.sh
+++ echo exit=1
+exit=1
+++ echo '## admin-merge on merged PR (must refuse, no merge)'
+## admin-merge on merged PR (must refuse, no merge)
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-fleet-admin-merge.sh https://github.com/roderik/firstmate-hermes/pull/9
+not eligible: https://github.com/roderik/firstmate-hermes/pull/9
+  - mergeable is "UNKNOWN", want MERGEABLE
+++ echo exit=1
+exit=1
+++ echo '## rollout check run 1'
+## rollout check run 1
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-release-rollout-check.sh
+++ echo exit=0
+exit=0
+++ ls -la /tmp/fm-fleet-lab.3UBLEX/state
+total 12
+drwxrwxr-x 2 roderik roderik 4096 Oct  2 10:01 .
+drwx------ 4 roderik roderik 4096 Oct  2 09:48 ..
+-rw-rw-r-- 1 roderik roderik   12 Oct  2 10:01 .watch-seen-ci
+++ head /tmp/fm-fleet-lab.3UBLEX/state/.watch-seen-ci
+36970657375
+++ echo '## stall-check run 1'
+## stall-check run 1
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-stall-check.sh
+++ echo exit=0
+exit=0
+++ cat /tmp/fm-fleet-lab.3UBLEX/state/.pr-stall-last
+1790928095
+++ echo '## stall-check run 2 (within cadence)'
+## stall-check run 2 (within cadence)
+++ env -u FM_FLEET_GH_BIN FM_HOME=/tmp/fm-fleet-lab.3UBLEX bin/fm-pr-stall-check.sh
+++ echo exit=0
+exit=0

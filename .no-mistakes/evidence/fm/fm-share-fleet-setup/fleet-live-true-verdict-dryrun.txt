@@ -1,0 +1,36 @@
+## config (no required_test_checks, no merge_method)
+{
+  "repo": "jqlang/jq",
+  "authors": [
+    "HarmfulBreeze"
+  ]
+}
+## merge-eligible jqlang/jq#3649
+true jqlang/jq#3649 author=HarmfulBreeze head=6c270fdd00ac777edec501889d28c371003a4c7d
+eligible: https://github.com/jqlang/jq/pull/3649
+exit=0
+## any-eligible
+https://github.com/jqlang/jq/pull/3649
+exit=0
+## any-eligible with PR on hold
+https://github.com/jqlang/jq/pull/3649
+exit=0
+## admin-merge DRY RUN, method from repo settings
+eligible: https://github.com/jqlang/jq/pull/3649
+true jqlang/jq#3649 author=HarmfulBreeze head=6c270fdd00ac777edec501889d28c371003a4c7d
+dry-run: would admin-merge https://github.com/jqlang/jq/pull/3649 with --squash
+exit=0
+## admin-merge DRY RUN, merge_method=rebase
+eligible: https://github.com/jqlang/jq/pull/3649
+true jqlang/jq#3649 author=HarmfulBreeze head=6c270fdd00ac777edec501889d28c371003a4c7d
+dry-run: would admin-merge https://github.com/jqlang/jq/pull/3649 with --rebase
+exit=0
+## required_test_checks=["No Such Check"] turns it false
+false jqlang/jq#3649
+not eligible: https://github.com/jqlang/jq/pull/3649
+  - required test check "No Such Check" has no passing run on the head (missing or skipped only)
+exit=1
+## admin-merge refuses (non-dry) when ineligible; gh pr merge never runs
+not eligible: https://github.com/jqlang/jq/pull/3649
+  - required test check "No Such Check" has no passing run on the head (missing or skipped only)
+exit=1

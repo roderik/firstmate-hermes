@@ -1,0 +1,43 @@
+## open PR cli/cli#14572 by BagToad; config authors=[someone-else], required_test_checks omitted
+{
+  "repo": "cli/cli",
+  "authors": [
+    "someone-else"
+  ]
+}
+false cli/cli#14572
+not eligible: https://github.com/cli/cli/pull/14572
+  - author "BagToad" not in fleet allowlist (someone-else)
+  - base branch is "bagtoad/artifact-edit", want the default branch "trunk"
+exit=1
+## same PR, config authors=[BagToad], required_test_checks=["No Such Check"]
+{
+  "repo": "cli/cli",
+  "authors": [
+    "BagToad"
+  ],
+  "required_test_checks": [
+    "No Such Check"
+  ]
+}
+false cli/cli#14572
+not eligible: https://github.com/cli/cli/pull/14572
+  - base branch is "bagtoad/artifact-edit", want the default branch "trunk"
+  - required test check "No Such Check" has no passing run on the head (missing or skipped only)
+exit=1
+## same PR, authors=[BagToad], required_test_checks omitted (rollup decides)
+false cli/cli#14572
+not eligible: https://github.com/cli/cli/pull/14572
+  - base branch is "bagtoad/artifact-edit", want the default branch "trunk"
+exit=1
+## no config at all, env-only authors, explicit --repo
+fleet watch configuration is unavailable: /tmp/fm-fleet-lab2.T95C2r/config/fleet-watch.json
+bin/fm-pr-fleet-merge-eligible.sh: line 63: FM_FLEET_GH_BIN: unbound variable
+exit=1
+## no config: rollout + stall checks report not configured
+fleet watch configuration is unavailable: /tmp/fm-fleet-lab2.T95C2r/config/fleet-watch.json
+release rollout watch is not configured
+exit=0
+fleet watch configuration is unavailable: /tmp/fm-fleet-lab2.T95C2r/config/fleet-watch.json
+fleet PR stall watch is not configured
+exit=0

@@ -1,0 +1,41 @@
+## config
+{
+  "repo": "jqlang/jq",
+  "authors": [
+    "itchyny"
+  ],
+  "cadence_seconds": 300,
+  "thresholds": {
+    "budget_seconds": 24
+  }
+}
+## stall-check cycle 1 (no fleet lane owns the PR)
+pr-stall: no live owner for https://github.com/jqlang/jq/pull/3631 (threads); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3617 (threads); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3592 (conflict); assign a babysit lane | pr-stall: no live owner for https://github.com/jqlang/jq/pull/3230 (conflict); assign a babysit lane
+exit=0
+## seen state
+{
+  "3631:3b0ea453d9:threads": {
+    "first": 1790928241,
+    "steered": 0,
+    "escalated": 1790928241
+  },
+  "3617:9e2c8f7610:threads": {
+    "first": 1790928241,
+    "steered": 0,
+    "escalated": 1790928241
+  },
+  "3592:081d721509:conflict": {
+    "first": 1790928241,
+    "steered": 0,
+    "escalated": 1790928241
+  },
+  "3230:bfb3ba5581:conflict": {
+    "first": 1790928241,
+    "steered": 0,
+    "escalated": 1790928241
+  }
+}
+## stall-check cycle 2 immediately (cadence gate: silent)
+exit=0
+## cycle 3 after clearing cadence stamp (already escalated: silent, no duplicate wake)
+exit=0

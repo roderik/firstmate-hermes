@@ -1,0 +1,3 @@
+### S11 sanitization scan of files added by this change
+no private names, hosts, skills, or credentials found
+{"rules":[{"when":"The task depends on fresh news, current events, live public facts, or recent market and product changes.","use":{"harness":"grok"},"why":"Grok is the preferred dispatch when current web-connected context is central to the work."},{"when":"The task is a trivial mechanical edit such as a rote rename, formatting sweep, targeted typo fix, or simple file gathering.","use":{"harness":

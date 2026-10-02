@@ -1,0 +1,9 @@
+## hold file at $FM_HOME/config/fleet-merge-hold.txt (beside fleet-watch.json)
+$FM_HOME/config/fleet-watch.json
+$FM_HOME/config/fleet-merge-hold.txt
+https://github.com/jqlang/jq/pull/3649
+exit=0
+## hold file at $FM_HOME/fleet-merge-hold.txt (home root)
+$FM_HOME/fleet-merge-hold.txt
+$FM_HOME/config/fleet-watch.json
+exit=1
