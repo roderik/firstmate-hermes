@@ -1,0 +1,16 @@
+{
+  "repo": "example-owner/example-repo",
+  "authors": ["example-author"],
+  "required_test_checks": ["Unit Tests", "Integration Tests"],
+  "cadence_seconds": 300,
+  "thresholds": {
+    "budget_seconds": 24,
+    "renudge_seconds": 2700,
+    "escalate_seconds": 7200
+  },
+  "takeovers": {},
+  "remote_lanes": [],
+  "rollout_workflows": [
+    {"name": "Release", "branch": "main"}
+  ]
+}

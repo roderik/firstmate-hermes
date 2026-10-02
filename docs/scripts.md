@@ -140,6 +140,13 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-pr-check.sh`         | Record the PR head, owner, base, and merge owner; route configured reviews and arm a static merge poll (see [architecture.md](architecture.md)) |
 | `fm-review-route.sh`     | Configure a review owner, dispatch exact-head review requests, and enforce the two-round cap with a named blocking-finding exception |
 | `fm-pr-merge.sh`         | Record PR metadata, merge a task's canonical full GitHub or GitLab URL, refuse a Gerrit change because firstmate never submits one, then refuse an outcome it cannot prove landed or queued |
+| `fm-fleet-config.sh`     | Read the private fleet pull-request and rollout watch configuration |
+| `fm-pr-fleet-merge-eligible.sh` | Apply deterministic, configurable fleet pull-request merge gates |
+| `fm-pr-fleet-any-eligible.sh` | Print configured fleet pull requests that pass the merge gates |
+| `fm-pr-fleet-admin-merge.sh` | Re-check and admin-merge one eligible fleet pull request |
+| `fm-pr-stall-sweep.py`    | Steer owners and surface or merge stalled configured fleet pull requests |
+| `fm-pr-stall-check.sh`    | Run the fleet pull-request sweep as a registered watcher check |
+| `fm-release-rollout-check.sh` | Surface failed runs of configured rollout workflows |
 | `fm-pr-state.sh`         | Read-only: print PR ownership and merge target plus reported GitHub blockers, without claiming merge readiness |
 | `fm-pr-reviewers.sh`     | Read-only: suggest reviewers from GitHub's own author mapping of recent commits on a pull request's changed files, never requesting one |
 | `fm-ready-check.sh`     | Run a project's declared `pr:ready-check` or `.firstmate/ready-check`, read from the project checkout, in a ship worktree at the handoff boundary |
