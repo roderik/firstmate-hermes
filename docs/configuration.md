@@ -2261,6 +2261,7 @@ Use `bin/fm-pr-fleet-merge-eligible.sh`, `bin/fm-pr-fleet-any-eligible.sh`, and 
 The eligibility script requires a configured author, a non-draft mergeable pull request against the repository's default branch, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
 When `required_test_checks` is omitted or empty, the successful rollup alone decides the check gate.
 Set `FM_FLEET_MERGE_DRY_RUN=1` to exercise the admin-merge path without changing the forge.
+The fleet scripts call the GitHub CLI `gh` with its `api graphql`, `pr list --json`, `run list`, and `pr merge` flags; set `FM_FLEET_GH_BIN` only to point at a different `gh`-compatible binary, because `gh-axi` does not accept those flags.
 
 Run `bin/fm-release-rollout-check.sh` from a registered custom check to report each newly completed failed workflow in `rollout_workflows`.
 The check records the last observed run id under `state/` and ignores successful or skipped runs.

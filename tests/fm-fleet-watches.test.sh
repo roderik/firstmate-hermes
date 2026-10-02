@@ -44,9 +44,11 @@ if [ "\${1:-}" = pr ] && [ "\${2:-}" = merge ]; then
 fi
 exit 2
 EOF_GH
-chmod +x "$work/bin/gh"
+# gh-axi rejects the gh flags the fleet scripts pass, so the default binary must be plain gh.
+printf '#!/usr/bin/env bash\nexit 2\n' > "$work/bin/gh-axi"
+chmod +x "$work/bin/gh" "$work/bin/gh-axi"
 fleet() {
-  PATH="$work/bin:$PATH" FM_FLEET_GH_BIN=gh FM_HOME="$work/home" FM_CONFIG_OVERRIDE="$work/home/config" \
+  PATH="$work/bin:$PATH" FM_HOME="$work/home" FM_CONFIG_OVERRIDE="$work/home/config" \
     FM_STATE_OVERRIDE="$work/home/state" "$@"
 }
 

@@ -17,7 +17,7 @@ fm_fleet_config_load() {
     return 1
   }
   FM_FLEET_CONFIG_PATH=$config
-  FM_FLEET_GH_BIN=${FM_FLEET_GH_BIN:-gh-axi}
+  FM_FLEET_GH_BIN=${FM_FLEET_GH_BIN:-gh}
   FM_FLEET_REPO=$(jq -er '.repo | strings | select(length > 0)' "$config") || return 1
   FM_FLEET_AUTHORS=$(jq -r '(.authors // []) | map(strings) | join(",")' "$config") || return 1
   FM_FLEET_REQUIRED_TEST_CHECKS=$(jq -r '(.required_test_checks // []) | map(strings) | join(",")' "$config") || return 1
