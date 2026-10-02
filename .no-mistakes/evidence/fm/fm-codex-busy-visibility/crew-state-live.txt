@@ -1,0 +1,7 @@
+-- [mid-turn (sleep 25 running)] pane: ◦ Working (4s • esc to interrupt)
+   change fm-crew-state.sh cx: state: working · source: pane · harness busy (codex-rollout)
+   base   fm-crew-state.sh cx: state: unknown · source: pane · harness state unavailable (unknown codex-unverified)
+-- [turn finished, idle at prompt] pane: › Ask Codex to do anything
+   change fm-crew-state.sh cx: state: unknown · source: none · no current-state source available
+   base   fm-crew-state.sh cx: state: unknown · source: pane · harness state unavailable (unknown codex-unverified)
+   codex-session cache: spawn_gen=s1790926917.3598632.1 scanned=rollout-2026-10-02T09-41-59-01a0fb90-16de-79f1-b2bd-5882d198a784.jsonl rollout=/home/roderik/.codex/sessions/2026/10/02/rollout-2026-10-02T09-41-59-01a0fb90-16de-79f1-b2bd-5882d198a784.jsonl folded=/home/roderik/.codex/sessions/2026/10/02/rollout-2026-10-02T09-41-59-01a0fb90-16de-79f1-b2bd-5882d198a784.jsonl offset=85869 seen=1 

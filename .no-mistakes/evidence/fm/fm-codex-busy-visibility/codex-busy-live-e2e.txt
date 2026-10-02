@@ -1,0 +1,5 @@
+ok - codex (codex-cli 0.160.0): a foreground turn classifies busy from its rollout, then idle when it completes
+ok - codex (codex-cli 0.160.0): an Escape interrupt closes the turn with turn_aborted and classifies idle
+ok - codex (codex-cli 0.160.0): idle Codex stays at its prompt after its background job finishes (dormant when idle)
+# codex (codex-cli 0.160.0): rollout /home/roderik/.codex/sessions/2026/10/02/rollout-2026-10-02T09-35-09-01a0fb89-d6b4-7dd0-8bf3-4e2b053bd35c.jsonl
+ok - live codex busy guard verified 3 live behavior(s)

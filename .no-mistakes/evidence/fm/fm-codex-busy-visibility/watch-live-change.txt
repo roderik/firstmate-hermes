@@ -1,0 +1,28 @@
+== [change] real codex launched in lab tmux (/tmp/fml.8E3csG), worktree /home/roderik/.cache/fm-lab-cx-wt.APXFwF
+== [change] classifier (change's lib) after first turn: idle codex-rollout
+== [change] declared: paused [at=1790926687]: waiting on taskguard ci:local; resume when it finishes
+== pane tail:
+     Worked for 11s • 9:38 AM
+   › Ask Codex to do anything
+     GPT 6.1 Sol low · ~/.cache/fm-lab-cx-wt.APXFwF · Reply with FMLAB-DONE
+     ? for shortcuts                                                                                                                     ⚠ 2 warnings · f2 to view
+== [change] fm-watch round 1 (bin from /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3XPHMX2XR0P174F2Q1M8GPA):
+   stdout: signal: /tmp/fm-lab.5bIcaj/state/cx.status
+   stdout:    (watcher rc=0)
+   wake-queue:
+     signal	cx.status	signal: /tmp/fm-lab.5bIcaj/state/cx.status
+     signal	cx.status	signal: /tmp/fm-lab.5bIcaj/state/cx.status
+   pause markers: 
+== [change] fm-watch round 2 (bin from /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3XPHMX2XR0P174F2Q1M8GPA):
+   stdout: stale: fm:fm-cx (idle at its prompt under a declared wait - this worker runtime does not resume itself when the wait clears; re-engage it)
+   stdout:    (watcher rc=0)
+   wake-queue:
+     stale	fm:fm-cx	stale: fm:fm-cx (idle at its prompt under a declared wait - this worker runtime does not resume itself when the wait clears; re-engage it)
+   pause markers: 
+== [change] fm-watch round 3 (bin from /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3XPHMX2XR0P174F2Q1M8GPA):
+   stdout: stale: fm:fm-cx (idle 42s, possible wedge, escalation 1)
+   stdout:    (watcher rc=0)
+   wake-queue:
+     stale	fm:fm-cx	stale: fm:fm-cx (idle 42s, possible wedge, escalation 1)
+   pause markers: 
+== [change] pane still idle at prompt: 2 lines

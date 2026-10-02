@@ -1,0 +1,26 @@
+== [base] real codex launched in lab tmux (/tmp/fml.camrQx), worktree /home/roderik/.cache/fm-lab-cx-wt.vCT3gr
+== [base] classifier (change's lib) after first turn: idle codex-rollout
+== [base] declared: paused [at=1790926776]: waiting on taskguard ci:local; resume when it finishes
+== pane tail:
+     Worked for 4s • 9:39 AM
+   › Ask Codex to do anything
+     GPT 6.1 Sol low · ~/.cache/fm-lab-cx-wt.vCT3gr · Reply with FMLAB-DONE
+     ? for shortcuts                                                                                                                     ⚠ 2 warnings · f2 to view
+== [base] fm-watch round 1 (bin from /tmp/fmlabdrv/base):
+   stdout: signal: /tmp/fm-lab.6TE4sM/state/cx.status
+   stdout:    (watcher rc=0)
+   wake-queue:
+     signal	cx.status	signal: /tmp/fm-lab.6TE4sM/state/cx.status
+     signal	cx.status	signal: /tmp/fm-lab.6TE4sM/state/cx.status
+   pause markers: 
+== [base] fm-watch round 2 (bin from /tmp/fmlabdrv/base):
+   stdout: stale: fm:fm-cx
+   stdout:    (watcher rc=0)
+   wake-queue:
+     stale	fm:fm-cx	stale: fm:fm-cx
+   pause markers: .paused-fm_fm-cx .paused-rechecked-fm_fm-cx .paused-resurfaced-fm_fm-cx 
+== [base] fm-watch round 3 (bin from /tmp/fmlabdrv/base):
+   stdout:    (watcher rc=124)
+   wake-queue:
+   pause markers: .paused-fm_fm-cx .paused-resurfaced-fm_fm-cx 
+== [base] pane still idle at prompt: 2 lines

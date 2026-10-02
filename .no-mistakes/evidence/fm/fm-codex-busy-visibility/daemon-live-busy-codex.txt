@@ -1,0 +1,6 @@
+== [change-busy] live codex pane classifies: busy codex-rollout
+== [change-busy] declared: paused: waiting on taskguard ci:local; resume when it finishes
+== [change-busy] classify_stale: pause|paused (awaiting external), rechecked on a long cadence: paused: waiting on taskguard ci:local; resume when it finishes
+== [change-busy] after handle_wake markers: .subsuper-paused-cx 
+== [change-busy] after housekeeping (marker aged 300s, FM_STALE_ESCALATE_SECS=240) markers: .subsuper-paused-cx 
+== [change-busy] buffered escalations:

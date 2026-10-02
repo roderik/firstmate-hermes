@@ -1,0 +1,7 @@
+== [change] live codex pane classifies: idle codex-rollout
+== [change] declared: paused: waiting on taskguard ci:local; resume when it finishes
+== [change] classify_stale: self|transient stale (fm:fm-cx): idle at its prompt under a declared wait it cannot resume from by itself: paused: waiting on taskguard ci:local; resume when it finishes
+== [change] after handle_wake markers: .subsuper-stale-cx 
+== [change] after housekeeping (marker aged 300s, FM_STALE_ESCALATE_SECS=240) markers: 
+== [change] buffered escalations:
+     stale persisted 300s (idle at its prompt under a declared wait it cannot resume from by itself): fm:fm-cx

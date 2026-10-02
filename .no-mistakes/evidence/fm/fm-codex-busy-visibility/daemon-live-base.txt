@@ -1,0 +1,6 @@
+== [base] live codex pane classifies: unknown codex-unverified
+== [base] declared: paused: waiting on taskguard ci:local; resume when it finishes
+== [base] classify_stale: pause|paused (awaiting external), rechecked on a long cadence: paused: waiting on taskguard ci:local; resume when it finishes
+== [base] after handle_wake markers: .subsuper-paused-cx 
+== [base] after housekeeping (marker aged 300s, FM_STALE_ESCALATE_SECS=240) markers: .subsuper-paused-cx 
+== [base] buffered escalations:
