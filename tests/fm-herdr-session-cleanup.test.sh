@@ -98,6 +98,7 @@ fixture_workspaces() {
   if [ -e "$FIXTURE_DIR/duplicate-token" ]; then
     printf ',{"workspace_id":"w3","label":"└ copy · p:%s","focused":false,"active_tab_id":"w3:t1","tab_count":1,"pane_count":1}' "$TOKEN"
   fi
+  [ ! -e "$FIXTURE_DIR/extra-workspaces" ] || cat "$FIXTURE_DIR/extra-workspaces"
   printf ']'
 }
 
@@ -269,6 +270,37 @@ fm_herdr_session_cleanup >/dev/null 2>&1
 [ ! -e "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "matching v2 cleanup kept the journal"
 [ "$(wc -l < "$CLOSE_LOG" | tr -d ' ')" = 1 ] || fail "matching v2 cleanup did not close exactly once"
 pass "v2 cleanup requires and accepts the exact journal endpoint binding"
+reset_fixture
+EXTRA=8
+i=1
+while [ "$i" -le "$EXTRA" ]; do
+  extra_token="ZyXwVuTsRqPoNmLkJiHg_$i"
+  write_v1 "other-$i" "$extra_token"
+  printf ',{"workspace_id":"x%s","label":"└ other-%s · p:%s","focused":false,"active_tab_id":"x%s:t1","tab_count":1,"pane_count":1}' \
+    "$i" "$i" "$extra_token" "$i" >> "$FIXTURE_DIR/extra-workspaces"
+  i=$((i + 1))
+done
+SNAPSHOT_LOG="$TMP_ROOT/journal-snapshots.log"
+: > "$SNAPSHOT_LOG"
+eval "fm_herdr_test_real_$(declare -f fm_backend_herdr_projection_journal_snapshot)"
+fm_backend_herdr_projection_journal_snapshot() {
+  printf '%s\n' "$1" >> "$SNAPSHOT_LOG"
+  fm_herdr_test_real_fm_backend_herdr_projection_journal_snapshot "$@"
+}
+fm_herdr_session_cleanup >/dev/null 2>&1
+eval "$(declare -f fm_herdr_test_real_fm_backend_herdr_projection_journal_snapshot \
+  | sed '1s/^fm_herdr_test_real_//')"
+[ ! -e "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "many-journal cleanup kept the stale journal"
+[ "$(wc -l < "$CLOSE_LOG" | tr -d ' ')" = 1 ] || fail "many-journal cleanup did not close exactly once"
+i=1
+while [ "$i" -le "$EXTRA" ]; do
+  [ -f "$FM_STATE_OVERRIDE/other-$i.herdr-presentation" ] || fail "many-journal cleanup retired other-$i"
+  i=$((i + 1))
+done
+snapshots=$(wc -l < "$SNAPSHOT_LOG" | tr -d ' ')
+[ "$snapshots" -le $((5 * (EXTRA + 1))) ] \
+  || fail "journal snapshots grew with workspaces times journals: $snapshots"
+pass "many journals and workspaces clean the one stale projection with linear journal reads"
 reset_fixture; : > "$FM_STATE_OVERRIDE/$ID.meta"; assert_preserved "current task metadata"
 reset_fixture; printf 'live\n' > "$FIXTURE_DIR/agent"; assert_preserved "registered agent"
 reset_fixture; printf 'unknown\n' > "$FIXTURE_DIR/agent"; assert_preserved "unknown agent"
