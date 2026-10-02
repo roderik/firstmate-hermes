@@ -2239,6 +2239,38 @@ The two read files use different parsing rules:
 
 `FM_VOICE_RELAY` and `FM_VOICE_PYTHON` belong to the laptop rather than to a home, so they have no config file: `bin/fm-voice-client.py` requires the relay path as a flag or that variable and carries no default path.
 
+## Fleet pull-request and rollout watches
+
+The fleet watches are optional registered custom checks that keep a team's pull requests moving and surface failed rollout workflows.
+They read one private JSON file at `$FM_HOME/config/fleet-watch.json`, or the path in `FM_FLEET_CONFIG_FILE`.
+Copy [`docs/examples/fleet-watch.json`](examples/fleet-watch.json) and replace its example values before arming a check.
+
+The configuration contains `repo`, an `authors` allowlist, `required_test_checks`, `cadence_seconds`, and `thresholds` for `budget_seconds`, `renudge_seconds`, and `escalate_seconds`.
+The optional `takeovers` object maps pull-request numbers to lane ids, `remote_lanes` excludes lanes that cannot receive local steering, and `rollout_workflows` lists objects with `name` and optional `branch` fields.
+The optional `merge_method` is `merge`, `squash`, or `rebase`; without it the admin merge uses the first method the repository allows, in the order squash, merge, rebase.
+The optional `steering` object replaces the message sent to the owning lane for `conflict`, `red`, `behind`, `cancelled`, or `threads`.
+Each template may use `{url}`, `{base}`, `{head}`, `{checks}`, `{cancelled}`, and `{threads}`, and a template that cannot be filled falls back to the neutral built-in wording.
+Name team-specific skills or branch policies in these templates rather than in the shared scripts.
+The author list and repository are required for the pull-request checks, and a missing or malformed file fails closed with a check diagnostic.
+
+Run `bin/fm-pr-stall-check.sh` from a registered `state/pr-stall.check.sh` shim to classify conflicts, failing checks, behind branches, cancelled-only rollups, and unresolved threads.
+The sweep steers the owning lane, re-nudges after `renudge_seconds`, invokes the guarded admin merge only after the eligibility script passes, and prints wake lines for merges, ownerless pull requests, and escalations.
+Register the shim with `bin/fm-check-register.sh pr-stall` after placing it at `state/pr-stall.check.sh`, or create an equivalent shim that invokes `bin/fm-pr-stall-sweep.py`.
+
+Use `bin/fm-pr-fleet-merge-eligible.sh`, `bin/fm-pr-fleet-any-eligible.sh`, and `bin/fm-pr-fleet-admin-merge.sh` for deterministic eligibility, condition checks, and the final guarded admin merge.
+The eligibility script requires a configured author, a non-draft mergeable pull request against the repository's default branch, no requested changes, resolved review threads, a successful rollup, an up-to-date branch, and a passing run for every configured required test check.
+When `required_test_checks` is omitted or empty, the successful rollup alone decides the check gate.
+To hold a pull request back from `bin/fm-pr-fleet-any-eligible.sh`, list its number on its own line in `fleet-merge-hold.txt` beside `fleet-watch.json` in `$FM_HOME/config`, or in the file named by `FM_FLEET_HOLD_FILE`.
+Set `FM_FLEET_MERGE_DRY_RUN=1` to exercise the admin-merge path without changing the forge.
+The fleet scripts call the GitHub CLI `gh` with its `api graphql`, `pr list --json`, `run list`, and `pr merge` flags; set `FM_FLEET_GH_BIN` only to point at a different `gh`-compatible binary, because `gh-axi` does not accept those flags.
+
+Run `bin/fm-release-rollout-check.sh` from a registered custom check to report each newly completed failed workflow in `rollout_workflows`.
+The check records the last observed run id under `state/` and ignores successful or skipped runs.
+Use the normal `FM_CHECK_INTERVAL` watcher cadence, or set `cadence_seconds` for tooling that schedules checks outside the watcher.
+
+The sanitized dispatch and brief additions in [`docs/examples/crew-dispatch.json`](examples/crew-dispatch.json) and [`docs/examples/brief-include.md`](examples/brief-include.md) are starting points for a team's own private configuration.
+Keep provider names, project names, hostnames, account names, credentials, and captain preferences in the private home configuration rather than committing them.
+
 ## Environment variables
 
 Runtime tuning via environment variables (defaults shown):

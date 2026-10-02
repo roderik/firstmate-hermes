@@ -575,6 +575,14 @@
     {
       "path": ".agents/skills/validation-supervision/SKILL.md",
       "audience": "agent-runtime"
+    },
+    {
+      "path": "docs/examples/brief-include.md",
+      "audience": "operator-example"
+    },
+    {
+      "path": "docs/examples/fleet-watch.json",
+      "audience": "operator-example"
     }
   ]
 }
