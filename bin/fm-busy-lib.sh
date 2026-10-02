@@ -1004,29 +1004,75 @@ EOF
 # The anchor is the exact structural prefix through "turn_id", for the same
 # reason muse's fold anchors on its run prefix: a turn's own text quoting
 # task_complete is an escaped string and can never match it.
-fm_busy_codex_turn_state() {  # <rollout>
-  [ -f "$1" ] || return 1
-  LC_ALL=C grep -F '"payload":{"type":"t' "$1" | LC_ALL=C awk '
-    {
+# With [cache] (the task's state/<id>.codex-session binding) the fold is
+# incremental: the cache carries the rollout it folded, the byte offset folded
+# through (always the end of a complete line), and the open turn ids, so a
+# rollout that grows to hundreds of MB is read once and then only past that
+# offset. A different rollout, or a file now shorter than the offset, refolds
+# from 0.
+fm_busy_codex_turn_state() {  # <rollout> [cache]
+  local log=$1 cache=${2-} size offset=0 seen=0 open='' out tmp verdict used
+  [ -f "$log" ] || return 1
+  if [ -n "$cache" ] && [ "$(fm_busy_codex_kv "$cache" folded 2>/dev/null)" = "$log" ]; then
+    offset=$(fm_busy_codex_kv "$cache" offset || echo 0)
+    seen=$(fm_busy_codex_kv "$cache" seen || echo 0)
+    open=$(fm_busy_codex_kv "$cache" open || true)
+    case "$offset$seen" in *[!0-9]*) offset=0; seen=0; open='' ;; esac
+  fi
+  size=$(wc -c < "$log" 2>/dev/null | tr -d ' ') || return 1
+  case "$size" in '' | *[!0-9]*) return 1 ;; esac
+  if [ "$offset" -gt "$size" ]; then
+    offset=0; seen=0; open=''
+  fi
+  out=$(tail -c +"$((offset + 1))" "$log" | head -c "$((size - offset))" | LC_ALL=C awk \
+    -v n="$((size - offset))" -v seen="$seen" -v open="$open" '
+    function fold(line,    i, ev, pre, p, rest, q) {
+      if (index(line, "\"payload\":{\"type\":\"t") == 0) return
       for (i = 1; i <= 3; i++) {
         ev = (i == 1 ? "task_started" : (i == 2 ? "task_complete" : "turn_aborted"))
         pre = "\"payload\":{\"type\":\"" ev "\",\"turn_id\":\""
-        p = index($0, pre)
+        p = index(line, pre)
         if (p == 0) continue
-        rest = substr($0, p + length(pre))
+        rest = substr(line, p + length(pre))
         q = index(rest, "\"")
-        if (q < 2) break
+        if (q < 2) return
         seen = 1
-        open[substr(rest, 1, q - 1)] = (i == 1)
-        break
+        if (i == 1) live[substr(rest, 1, q - 1)] = 1
+        else delete live[substr(rest, 1, q - 1)]
+        return
       }
     }
-    END {
-      if (!seen) { print "none"; exit }
-      for (t in open) if (open[t]) { print "busy"; exit }
-      print "settled"
+    BEGIN {
+      k = split(open, ids, " ")
+      for (j = 1; j <= k; j++) live[ids[j]] = 1
     }
-  '
+    NR > 1 { fold(prev); used += length(prev) + 1 }
+    { prev = $0 }
+    END {
+      if (NR > 0 && used + length(prev) + 1 <= n) { fold(prev); used += length(prev) + 1 }
+      ids_out = ""
+      for (t in live) ids_out = ids_out (ids_out == "" ? "" : " ") t
+      state = !seen ? "none" : (ids_out == "" ? "settled" : "busy")
+      print state; print used + 0; print seen + 0; print ids_out
+    }
+  ') || return 1
+  { IFS= read -r verdict; IFS= read -r used; IFS= read -r seen; IFS= read -r open; } <<EOF
+$out
+EOF
+  [ -n "$verdict" ] || return 1
+  if [ -n "$cache" ] && [ -f "$cache" ]; then
+    tmp="$cache.tmp.$$"
+    if {
+      LC_ALL=C grep -v -e '^folded=' -e '^offset=' -e '^seen=' -e '^open=' "$cache"
+      printf 'folded=%s\noffset=%s\nseen=%s\n' "$log" "$((offset + used))" "$seen"
+      [ -z "$open" ] || printf 'open=%s\n' "$open"
+    } > "$tmp" 2>/dev/null; then
+      mv -f -- "$tmp" "$cache" 2>/dev/null || rm -f "$tmp"
+    else
+      rm -f "$tmp"
+    fi
+  fi
+  printf '%s\n' "$verdict"
 }
 
 # fm_busy_idle_is_dormant: 0 when <harness> is verified to stay idle at its
@@ -1221,7 +1267,7 @@ fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
         printf 'unknown codex-rollout'
         return 0
       fi
-      case "$(fm_busy_codex_turn_state "$log" 2>/dev/null)" in
+      case "$(fm_busy_codex_turn_state "$log" "$(fm_busy_codex_cache_path "$state" "$id")" 2>/dev/null)" in
         busy) printf 'busy codex-rollout' ;;
         settled) printf 'idle codex-rollout' ;;
         *) printf 'unknown codex-rollout' ;;

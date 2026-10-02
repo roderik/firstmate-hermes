@@ -526,6 +526,41 @@ test_codex_rollout_turn_lifecycle() {
   pass "codex's rollout brackets turns: open is busy, completed, interrupted, and errored ends are idle"
 }
 
+test_codex_rollout_folds_incrementally() {
+  local state home wt now f cache out offset
+  state=$(new_state_dir codex-incr); home="$TMP_ROOT/codex-incr/codex"; wt="$TMP_ROOT/codex-incr/wt"
+  now=$(date +%s)
+  codex_meta "$state" t1 "$wt" "$((now - 100))"
+  f=$(codex_rollout "$home" "$((now - 90))" 01a0-main "$wt")
+  cache="$state/t1.codex-session"
+  codex_event "$f" task_started turn-1
+  codex_event "$f" task_complete turn-1
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "the first full fold must classify idle, got '$out'"
+  offset=$(fm_busy_codex_kv "$cache" offset)
+  [ "$offset" = "$(wc -c < "$f" | tr -d ' ')" ] || fail "the fold offset must reach the end of the rollout, got '$offset'"
+  # Scramble the already-folded bytes in place: a resumed fold must not reread them.
+  LC_ALL=C sed -i.bak 's/task_complete/task_started_/' "$f"
+  codex_event "$f" task_started turn-2
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "an appended open turn must classify busy, got '$out'"
+  # A half-written trailing record is not folded and not consumed.
+  printf '{"timestamp":"t","ordinal":9,"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-2"' >> "$f"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a partial close record must not close the turn yet, got '$out'"
+  printf '}}\n' >> "$f"
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "idle codex-rollout" ] || fail "the completed close record must close the turn, got '$out'"
+  # A rollout rewritten shorter than the folded offset refolds from 0.
+  : > "$f"
+  codex_event "$f" task_started turn-9
+  out=$(codex_classify "$home" "$state" t1)
+  [ "$out" = "busy codex-rollout" ] || fail "a truncated rollout must refold from 0, got '$out'"
+  [ "$(fm_busy_codex_kv "$cache" offset)" = "$(wc -c < "$f" | tr -d ' ')" ] \
+    || fail "a refold must restart its offset from the rewritten file"
+  pass "codex folds its rollout incrementally past the cached offset and refolds a truncated file"
+}
+
 test_codex_rollout_binding_picks_the_panes_own_thread() {
   local state home wt now f out
   state=$(new_state_dir codex-bind); home="$TMP_ROOT/codex-bind/codex"; wt="$TMP_ROOT/codex-bind/wt"
@@ -761,6 +796,7 @@ test_launch_prompt_requires_a_captured_tail
 test_grok_regex_isolated
 test_codex_never_trusts_a_record
 test_codex_rollout_turn_lifecycle
+test_codex_rollout_folds_incrementally
 test_codex_rollout_binding_picks_the_panes_own_thread
 test_codex_rollout_waits_for_a_complete_header
 test_codex_rollout_needs_its_metadata
