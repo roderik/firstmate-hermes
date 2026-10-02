@@ -19,7 +19,7 @@ AUTHOR=${FM_FLEET_PR_AUTHORS:-${FM_FLEET_AUTHORS:-}}
 ELIGIBLE="$SCRIPT_DIR/fm-pr-fleet-merge-eligible.sh"
 
 found=1
-HOLD="${FM_FLEET_HOLD_FILE:-${FM_CONFIG_OVERRIDE:-${FM_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)/config}}/fleet-merge-hold.txt}"
+HOLD="${FM_FLEET_HOLD_FILE:-${FM_CONFIG_OVERRIDE:-${FM_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}/config}/fleet-merge-hold.txt}"
 IFS=',' read -r -a authors <<<"$AUTHOR"
 for author in "${authors[@]}"; do
   author=${author// /}

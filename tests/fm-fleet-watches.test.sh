@@ -42,6 +42,10 @@ fi
 if [ "\${1:-}" = pr ] && [ "\${2:-}" = merge ]; then
   exit 0
 fi
+if [ "\${1:-}" = pr ] && [ "\${2:-}" = list ]; then
+  printf '%s\n' 7
+  exit 0
+fi
 exit 2
 EOF_GH
 # gh-axi rejects the gh flags the fleet scripts pass, so the default binary must be plain gh.
@@ -81,6 +85,17 @@ grep -q '^true owner/repo#7 ' "$work/eligible.out"
 FM_FLEET_MERGE_DRY_RUN=1 fleet "$ROOT/bin/fm-pr-fleet-admin-merge.sh" https://github.com/owner/repo/pull/7 > "$work/merge.out"
 grep -qxF 'dry-run: would admin-merge https://github.com/owner/repo/pull/7 with --merge' "$work/merge.out"
 if grep -q '^pr merge' "$work/gh.log"; then fail "dry run must not merge"; fi
+
+# The merge hold lives beside fleet-watch.json in $FM_HOME/config.
+fleet "$ROOT/bin/fm-pr-fleet-any-eligible.sh" > "$work/any.out"
+grep -qxF 'https://github.com/owner/repo/pull/7' "$work/any.out"
+printf '%s\n' 7 > "$work/home/config/fleet-merge-hold.txt"
+if PATH="$work/bin:$PATH" FM_HOME="$work/home" FM_STATE_OVERRIDE="$work/home/state" \
+  "$ROOT/bin/fm-pr-fleet-any-eligible.sh" > "$work/any.out"; then
+  fail "a pull request held in \$FM_HOME/config/fleet-merge-hold.txt must not be reported eligible"
+fi
+test ! -s "$work/any.out"
+rm "$work/home/config/fleet-merge-hold.txt"
 
 write_config <<'JSON'
 {"repo": "owner/repo", "authors": ["author"], "merge_method": "rebase"}
