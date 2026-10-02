@@ -648,6 +648,37 @@ SH
   pass "fm-teardown: an exact recorded endpoint still tears down after changing cwd outside its worktree"
 }
 
+test_review_of_scout_tears_down_without_touching_the_author_slot() {
+  local dir id=review-task author=author-task worker
+
+  dir=$(make_case slot-review-of)
+  mark_case_as_treehouse_pool "$dir"
+  claim_pool_slot "$dir" "$author"
+  fm_write_meta "$dir/home/state/$author.meta" \
+    "window=firstmate:fm-$author" "endpoint_task_id=$author" \
+    "worktree=$dir/worktree" "project=$dir/project" "kind=ship"
+  fm_write_meta "$dir/home/state/$id.meta" \
+    "window=firstmate:fm-$id" "endpoint_task_id=$id" \
+    "worktree=$dir/worktree" "project=$dir/project" "kind=scout" \
+    "review_of=$author"
+  ( cd "$dir/worktree" && exec sleep 30 ) &
+  worker=$!
+
+  run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "review-of teardown refused: $(cat "$dir/stderr")"
+  assert_absent "$dir/home/state/$id.meta" "review-of teardown left the reviewer record"
+  assert_present "$dir/home/state/$author.meta" "review-of teardown removed the author's record"
+  assert_present "$dir/worktree/sentinel" "review-of teardown reset the author's slot"
+  assert_present "$dir/pool/1/.fm-slot-owner" "review-of teardown released the author's slot claim"
+  kill -0 "$worker" 2>/dev/null || fail "review-of teardown killed the author's worker"
+  if grep -Fq "treehouse <return>" "$dir/runtime.log"; then
+    fail "review-of teardown returned the author's pool slot: $(cat "$dir/runtime.log")"
+  fi
+  kill "$worker" 2>/dev/null || true
+  wait "$worker" 2>/dev/null || true
+  pass "fm-teardown: a review-of scout tears down without returning or touching the author's slot"
+}
+
 # --- Treehouse project-lock anchoring across home layouts --------------------
 #
 # The lock is anchored at the local root home, so every home on this machine
@@ -1405,6 +1436,7 @@ test_sole_slot_record_still_tears_down
 test_reassigned_pool_slot_finishes_own_cleanup_without_touching_the_slot
 test_own_and_absent_slot_claims_still_tear_down
 test_recorded_endpoint_that_changed_directory_still_tears_down
+test_review_of_scout_tears_down_without_touching_the_author_slot
 test_project_lock_anchors_at_the_local_root_across_home_layouts
 test_remote_seeded_home_returns_its_uncontested_slot
 test_remote_seeded_home_still_refuses_a_slot_its_child_holds
