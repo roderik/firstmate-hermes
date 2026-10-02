@@ -1,0 +1,4 @@
+fixture: root=/tmp/fm-base.vMgE21/wt workspaces=33 journals=52 stale=6 live=6 orphan=40 noise=20
+cleanup wall time: 43.02s
+stale panes closed: 6/6  live panes kept: 6/6  journals left: stale=0 live=6 orphan=40  focus-preserved=yes
+ok - scaled lab cleanup retired exactly the stale projections and preserved live ones

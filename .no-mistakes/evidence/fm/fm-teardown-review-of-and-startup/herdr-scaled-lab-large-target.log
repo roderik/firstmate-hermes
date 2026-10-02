@@ -1,0 +1,4 @@
+fixture: root=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M3X6T6PY9RMWYEY704XE7GZ0 workspaces=33 journals=132 stale=2 live=30 orphan=100 noise=0
+cleanup wall time: 21.35s
+stale panes closed: 2/2  live panes kept: 30/30  journals left: stale=0 live=30 orphan=100  focus-preserved=yes
+ok - scaled lab cleanup retired exactly the stale projections and preserved live ones

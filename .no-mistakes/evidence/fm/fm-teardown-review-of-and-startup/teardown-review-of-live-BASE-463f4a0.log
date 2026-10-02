@@ -1,0 +1,12 @@
+== before: windows: fm-author-task fm-review-task driver 
+== fm-teardown.sh review-task exit=1
+   | complete: review-task captain-call inventory reviewed
+   | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.12I5Wo
+   | REFUSED: task review-task's Treehouse project identity changed while teardown acquired its locks; nothing was changed
+== after: windows: fm-author-task fm-review-task driver 
+reviewer meta present: yes
+author meta present:   yes
+author slot dir present: yes; author work file: author work in progress
+slot owner claim: task=author-task home=/tmp/fm-lab.12I5Wo 
+git worktree list: 2 entries
+treehouse calls: none

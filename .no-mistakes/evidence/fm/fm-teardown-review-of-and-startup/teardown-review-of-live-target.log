@@ -1,0 +1,13 @@
+== before: windows: fm-author-task fm-review-task driver 
+== fm-teardown.sh review-task exit=0
+   | complete: review-task captain-call inventory reviewed
+   | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.mhUDCH
+   | teardown review-task complete (window firstmate:fm-review-task, worktree /tmp/fm-lab.mhUDCH/pool/1/proj)
+   | Backlog: review-task just finished (this home keeps no markdown backlog at /tmp/fm-lab.mhUDCH/data/backlog.md). Update /tmp/fm-lab.mhUDCH/data/backlog.md - move review-task to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+== after: windows: fm-author-task driver 
+reviewer meta present: no
+author meta present:   yes
+author slot dir present: yes; author work file: author work in progress
+slot owner claim: task=author-task home=/tmp/fm-lab.mhUDCH 
+git worktree list: 2 entries
+treehouse calls: none
