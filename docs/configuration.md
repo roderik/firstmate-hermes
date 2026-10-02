@@ -321,7 +321,6 @@ Grok's arm command is rendered at session start, so a change to its host mode ta
 
 `config/supervision-host` may be empty or hold one line `<engine> [<model>]`:
 
-- `off` opts the home out of the host;
 - empty or `default` selects the primary harness's own engine at that engine's default model (`sonnet` for the Claude engine);
 - `<engine> [<model>]` names a verified engine, currently only `claude`, and optionally the engine's own model name or alias; `default <model>` selects the primary harness's engine with that model.
 
