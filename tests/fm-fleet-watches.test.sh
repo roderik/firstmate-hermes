@@ -124,6 +124,48 @@ PY
 sed -n 1p "$work/steer.out" | grep -qxF 'https://github.com/owner/repo/pull/7 trails trunk; run team-sync.'
 sed -n 2p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 has 2 unresolved review thread(s)\.'
 sed -n 3p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 conflicts with trunk\.'
+# Registered PRs remain in the sweep even when their author is outside the
+# configured author allowlist, and ownership uses both pr= and the branch.
+printf '%s\n' 'window=fm-task-a' 'branch=feature/task-a' 'pr=https://github.com/owner/repo/pull/7' > "$work/home/state/task-a.meta"
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": ["different-author"]}
+JSON
+pr_fixture trunk trunk "Unit Tests"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/registered.out" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+items = sweep.prs()
+assert any(p["number"] == 7 for p in items), "registered PR was filtered by author"
+assert sweep.owner_of(items[0], sweep.owners()) == "task-a", "registered PR did not map to its owner"
+print("registered")
+PY
+grep -qxF registered "$work/registered.out"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/red.out" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+pr = {"url": "https://github.com/owner/repo/pull/7", "number": 7,
+      "baseRefName": "trunk", "headRefName": "feature/task-a", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+      "author": {"login": "different-author"},
+      "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef",
+        "statusCheckRollup": {"state": "FAILURE", "contexts": {"nodes": [
+          {"name": "Unit Tests", "conclusion": "FAILURE", "detailsUrl": "https://ci.invalid/1"}]}}}}]}}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: {"task-a": {"branch": "feature/task-a", "pr": pr["url"]}}
+calls = []
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+sweep.main()
+assert any("fm-send.sh" in args[0] and args[1] == "task-a" for args in calls), "red PR did not wake its owner"
+print("red steer")
+PY
+grep -qxF 'red steer' "$work/red.out"
+
+
 write_config <<'JSON'
 {"repo": "owner/repo", "authors": ["author"], "steering": ["not", "an", "object"]}
 JSON

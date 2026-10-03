@@ -748,6 +748,43 @@ test_direct_pr_unpushed_commit_refuses_registration() {
   pass "fm-pr-check refuses a direct-PR registration while a later commit is only in the copy"
 }
 
+test_registration_survives_pending_ready_check() {
+  local dir head rc
+  dir=$(make_case pending-ready)
+  write_task_meta "$dir"
+  mkdir -p "$dir/project/.firstmate"
+  cat > "$dir/project/.firstmate/ready-check" <<'SH'
+#!/usr/bin/env bash
+test -f ready.ok
+SH
+  chmod +x "$dir/project/.firstmate/ready-check"
+  head=$(git -C "$dir/wt" rev-parse HEAD)
+  set +e
+  FM_TEST_GH_HEAD=$head run_check_entry "$dir" task-a https://github.com/o/r/pull/41 \
+    > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "a pending ready check unexpectedly armed the poll"
+  grep -qxF 'pr=https://github.com/o/r/pull/41' "$dir/home/state/task-a.meta" \
+    || fail "pending ready check did not retain PR registration"
+  grep -qxF 'task_owner=task-a' "$dir/home/state/task-a.meta" \
+    || fail "pending ready check did not retain ownership"
+  grep -qxF "pr_head=$head" "$dir/home/state/task-a.meta" \
+    || fail "pending ready check did not retain forge head"
+  [ ! -e "$dir/home/state/task-a.check.sh" ] \
+    || fail "pending ready check armed a merge poll"
+  touch "$dir/wt/ready.ok"
+  git -C "$dir/wt" add ready.ok
+  git -C "$dir/wt" commit -q -m ready
+  head=$(git -C "$dir/wt" rev-parse HEAD)
+  FM_TEST_GH_HEAD=$head run_check_entry "$dir" task-a https://github.com/o/r/pull/41 \
+    > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "a ready check that later passed did not arm the poll"
+  [ -f "$dir/home/state/task-a.check.sh" ] \
+    || fail "ready re-evaluation did not arm the merge poll"
+  pass "PR registration survives a pending ready check and arms after re-evaluation"
+}
+
 test_valid_recording_and_merge_derivation() {
   local dir expected sidecar count rc
   dir=$(make_case valid-recording)
@@ -3525,6 +3562,7 @@ test_draft_pull_request_is_not_armed
 test_secondmate_record_refuses_a_pr_watch
 test_unpushed_named_head_refuses_registration
 test_direct_pr_unpushed_commit_refuses_registration
+test_registration_survives_pending_ready_check
 test_valid_recording_and_merge_derivation
 test_stacked_pr_base_is_flagged
 test_pr_ready_carries_merge_authority

@@ -70,14 +70,46 @@ Q = """query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on Pull
  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}}"""
 
+Q_ONE = """query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
+ number url isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+ reviewThreads(first:60){nodes{isResolved}}
+ commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}"""
+
+
+def registered_prs():
+    """Read canonical PR URLs from task metadata for owner-independent coverage."""
+    out = []
+    for m in glob.glob(f"{STATE}/*.meta"):
+        try:
+            text = open(m, encoding="utf-8").read()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if line.startswith("pr=https://github.com/"):
+                match = re.fullmatch(r"pr=(https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*))", line)
+                if match:
+                    out.append((match.group(1), match.group(2), int(match.group(3))))
+                break
+    return out
+
 
 def prs():
     out = []
     authors = cfg.get("authors", []) if "cfg" in globals() else [os.environ.get("FM_FLEET_PR_AUTHORS", "")]
     authors = [a for a in authors if a]
-    if not REPO or not authors:
+    registered = [entry for entry in registered_prs() if entry[1] == REPO]
+    if not REPO or (not authors and not registered):
         return out
-    for q in [f"repo:{REPO} is:pr is:open author:{a}" for a in authors]:
+    queries = [f"repo:{REPO} is:pr is:open author:{a}" for a in authors]
+    # A registered PR must remain visible even when its author is not in the
+    # fleet author allowlist. The broad query is filtered back to configured
+    # authors or exact registered numbers below; it only fills the first page,
+    # while the identity query handles every registered PR explicitly.
+    if registered:
+        queries.append(f"repo:{REPO} is:pr is:open")
+    seen = set()
+    for q in queries:
         rc, o = sh([GH_BIN, "api", "graphql", "-f", f"query={Q}", "-f", f"q={q}"], timeout=12)
         if rc:
             continue
@@ -86,34 +118,73 @@ def prs():
         except (KeyError, TypeError, json.JSONDecodeError):
             continue
         for n in nodes:
-            if n["author"]["login"] not in authors and n["number"] not in TAKEOVERS:
+            if not n or n.get("number") in seen:
                 continue
+            if n.get("author", {}).get("login") not in authors and not any(n.get("number") == x[2] for x in registered):
+                continue
+            seen.add(n["number"])
             out.append(n)
+    # Search is capped at 100 results. Fetch registered identities directly so
+    # a live owner is never reported ownerless merely because the PR fell past
+    # that cap or was opened by an account outside the configured author list.
+    for url, path, number in registered:
+        if number in seen:
+            continue
+        owner, name = path.split("/", 1)
+        rc, raw = sh([GH_BIN, "api", "graphql", "-f", f"query={Q_ONE}",
+                      "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}"], timeout=12)
+        if rc:
+            continue
+        try:
+            node = json.loads(raw)["data"]["repository"]["pullRequest"]
+        except (KeyError, TypeError, json.JSONDecodeError):
+            continue
+        if node and not node.get("isDraft"):
+            seen.add(number)
+            out.append(node)
     return out
 
 
 def owners():
-    metas = {}
+    records = {}
     for m in glob.glob(f"{STATE}/*.meta"):
         tid = os.path.basename(m)[:-5]
-        b = re.search(r"^branch=(.*)$", open(m).read(), re.M)
-        metas[tid] = b.group(1) if b else ""
-    return metas
+        try:
+            text = open(m, encoding="utf-8").read()
+        except OSError:
+            continue
+        branch = ""
+        pr = ""
+        for line in text.splitlines():
+            if line.startswith("branch="):
+                branch = line[7:]
+            elif line.startswith("pr="):
+                pr = line[3:]
+        records[tid] = {"branch": branch, "pr": pr}
+    return records
 
 
 def owner_of(pr, metas):
     n = pr["number"]
+    url = pr.get("url", "")
     if n in TAKEOVERS and TAKEOVERS[n] in metas:
         return TAKEOVERS[n]
-    for tid, br in metas.items():
-        if br and br == pr["headRefName"] and tid not in REMOTE:
+    # A canonical pr= is authoritative for a takeover or a stacked lane whose
+    # branch moved after the PR opened.
+    for tid, record in metas.items():
+        if record.get("pr") == url:
+            return tid
+    # Branch ownership covers stacked lanes and PRs whose metadata was recorded
+    # before the forge returned the canonical URL.
+    for tid, record in metas.items():
+        if record.get("branch") and record["branch"] == pr.get("headRefName"):
             return tid
     best = None
     for tid in metas:
         if tid in REMOTE:
             continue
         try:
-            tail = open(f"{STATE}/{tid}.status").read()[-6000:]
+            tail = open(f"{STATE}/{tid}.status", encoding="utf-8").read()[-6000:]
         except OSError:
             continue
         if f"/pull/{n}" in tail:
@@ -122,7 +193,7 @@ def owner_of(pr, metas):
         return best
     for tid in REMOTE:
         try:
-            if f"/pull/{n}" in open(f"{STATE}/{tid}.status").read()[-6000:]:
+            if f"/pull/{n}" in open(f"{STATE}/{tid}.status", encoding="utf-8").read()[-6000:]:
                 return tid
         except OSError:
             pass
@@ -201,9 +272,9 @@ def main():
                 rec["escalated"] = now
             seen[key] = rec
             continue
-        if own in REMOTE:
-            seen[key] = rec
-            continue
+        # fm-send owns local and remote durable inbox delivery. Keep remote
+        # lanes in the same steer path so every registered PR reaches its live
+        # owner instead of being silently skipped.
         if not rec["steered"] or now - rec["steered"] > RENUDGE_S:
             msg = ("[pr-stall sweep] " if not rec["steered"] else "[pr-stall sweep, still stalled] ") + action
             rc, _ = sh([os.path.join(CODE_ROOT, "bin/fm-send.sh"), own, msg], timeout=8)

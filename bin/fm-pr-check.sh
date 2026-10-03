@@ -160,12 +160,8 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
-# bin/fm-pr-merge.sh runs its own ready check before taking the control lock.
-if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
-  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
-  echo "error: $GATE_REASON" >&2
-  exit 1
-fi
+# The named-head gate still runs before metadata publication: a PR whose content
+# exists only in the disposable worker copy must not become a registered owner.
 if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
   && ! GATE_REASON=$(fm_dod_accept_ship_done "${KIND:-ship}" "$MODE" "$WT" "$PROJECT" "$DONE_LINE" "$STATE" "$ID" "$META"); then
   echo "error: $GATE_REASON" >&2
@@ -191,6 +187,10 @@ pr_check_cleanup() {
 }
 trap pr_check_cleanup EXIT
 trap 'exit 1' HUP INT TERM
+
+# Build the private poll generation before publication. Preparation is temp-only,
+# so an interrupted or malformed generation leaves the task metadata untouched;
+# the generation is published only after registration and its ready gate pass.
 fm_pr_poll_prepare "$STATE" "$ID" "$PROVIDER" "$URL" "$HOST" "$PROJECT_PATH" "$NUMBER" "$SCRIPT_DIR/fm-pr-poll.sh" \
   || { echo "error: could not prepare PR poll" >&2; exit 1; }
 
@@ -239,6 +239,17 @@ fm_pr_metadata_identity_parse "$META" || exit 1
   && [ "$FM_PR_META_NUMBER" = "$NUMBER" ] || exit 1
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
+
+# Registration is deliberately published before the project-owned ready check.
+# A pending CI result can make that check fail even though the forge has already
+# reported a real non-draft PR; retaining pr=, pr_head=, and ownership lets the
+# fleet stall sweep wake the lane while the check is pending. No merge poll is
+# armed until a later registration re-evaluates this gate successfully.
+if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
+  echo "error: $GATE_REASON" >&2
+  exit 1
+fi
 
 PR_POLL_PUBLISH_LOCK="$STATE/.pr-poll-publish-$ID.lock"
 fm_lock_acquire_wait "$PR_POLL_PUBLISH_LOCK"
