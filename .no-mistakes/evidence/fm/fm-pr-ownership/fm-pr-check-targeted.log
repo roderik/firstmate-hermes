@@ -1,0 +1,7 @@
+ok - arming refuses a draft pull request, naming it, and arms a ready or unreadable one
+ok - fm-pr-check refuses to register a PR whose named head is only in the worker copy
+ok - fm-pr-check refuses a direct-PR registration while a later commit is only in the copy
+ok - PR registration survives a pending ready check and arms after re-evaluation
+ok - valid direct and merge flows record exact metadata and reject multiline head metadata
+ok - ready PR carries task merge authority
+not ok - teardown race: refused cleanup removed persisted authority

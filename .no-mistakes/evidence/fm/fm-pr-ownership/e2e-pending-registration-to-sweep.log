@@ -1,0 +1,156 @@
+
+=== S1: fm-pr-check.sh task-a https://github.com/o/r/pull/41 while the ready check fails (CI pending) ===
+error: project ready check failed: ready-check: failed (exit 1)
+exit=1
+--- state/task-a.meta (pr/ownership lines)
+task_owner=task-a
+pr=https://github.com/o/r/pull/41
+--- pr_head recorded? no
+--- merge poll armed (task-a.check.sh)? no
+
+=== S2: sweep with PR 41 open + red (author outside allowlist, registered only via pr=) ===
+sweep exit=0
+--- gh calls: 10 (1 aliased per-number fetch)
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          2  reviewThreads(first:60){nodes{isResolved}}
+--- task-a steering inbox records:
+[/tmp/fm-pr-check-security.ZxhZRC/e2e/home/state/task-a.inbox/001.msg]
+[pr-stall sweep] https://github.com/o/r/pull/41 has failing checks on head abcdef0123: ci https://github.com/o/r/actions/runs/9. Read the failing job log, fix the root cause, re-run the focused local checks, push, and keep watching the pull request.
+
+=== S3: same red head again (no re-nudge within renudge window) ===
+sweep exit=0
+--- gh calls: 10 (1 aliased per-number fetch)
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          2  reviewThreads(first:60){nodes{isResolved}}
+steer records containing pr-stall: 1
+
+=== S4: PR 41 turns green, still no merge poll armed -> ready wake ===
+sweep exit=0
+--- gh calls: 45 (1 aliased per-number fetch)
+          1                 }
+          1               }
+          1             }
+          1           }
+          1         }
+          2       }
+          1     }
+          1   }
+          1 api graphql -f query=query($o:String!,$n:String!,$number:Int!) {
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          1       author { login }
+          1       baseRefName
+          1           commit {
+          1       commits(last: 1) {
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          1               contexts(first: 100) {
+          1     defaultBranchRef { name }
+          1 } -f o=o -f n=r -F number=41
+          1       isDraft
+          1       mergeable
+          1       mergeStateStatus
+          1                 nodes {
+          1         nodes {
+          1         nodes { isResolved }
+          1       number
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          1             oid
+          1                   ... on CheckRun { name conclusion }
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          1                   ... on StatusContext { context state }
+          1     pullRequest(number:$number) {
+          1   repository(owner:$o, name:$n) {
+          1       reviewDecision
+          1       reviewThreads(first: 100) {
+          2  reviewThreads(first:60){nodes{isResolved}}
+          1               state
+          1             statusCheckRollup {
+          1                   __typename
+          1       url
+--- task-a steering inbox records:
+[/tmp/fm-pr-check-security.ZxhZRC/e2e/home/state/task-a.inbox/001.msg]
+[pr-stall sweep] https://github.com/o/r/pull/41 has failing checks on head abcdef0123: ci https://github.com/o/r/actions/runs/9. Read the failing job log, fix the root cause, re-run the focused local checks, push, and keep watching the pull request.
+[/tmp/fm-pr-check-security.ZxhZRC/e2e/home/state/task-a.inbox/002.msg]
+[pr-stall sweep] https://github.com/o/r/pull/41 is green on head abcdef0123 but no merge watch is armed for it. Re-run the local ready check and report the pull request ready again.
+
+=== S5: lane re-runs fm-pr-check after CI went green (ready check now passes) ===
+armed: state/task-a.check.sh pr=https://github.com/o/r/pull/41 task_owner=task-a head_repo=o/r base_repo=o/r base_ref=main base_sha=0123456789abcdef0123456789abcdef01234567 merge_target=o/r:main stacked=no merge_owner=unknown
+exit=0
+--- pr_head: pr_head=622682e0143dac3781f7bcb8e2fef9f7557bfaf0
+--- merge poll armed? yes
+
+=== S6: sweep on green PR with armed merge poll -> no ready steer ===
+sweep exit=0
+--- gh calls: 45 (1 aliased per-number fetch)
+          1                 }
+          1               }
+          1             }
+          1           }
+          1         }
+          2       }
+          1     }
+          1   }
+          1 api graphql -f query=query($o:String!,$n:String!,$number:Int!) {
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          1       author { login }
+          1       baseRefName
+          1           commit {
+          1       commits(last: 1) {
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          1               contexts(first: 100) {
+          1     defaultBranchRef { name }
+          1 } -f o=o -f n=r -F number=41
+          1       isDraft
+          1       mergeable
+          1       mergeStateStatus
+          1                 nodes {
+          1         nodes {
+          1         nodes { isResolved }
+          1       number
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          1             oid
+          1                   ... on CheckRun { name conclusion }
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          1                   ... on StatusContext { context state }
+          1     pullRequest(number:$number) {
+          1   repository(owner:$o, name:$n) {
+          1       reviewDecision
+          1       reviewThreads(first: 100) {
+          2  reviewThreads(first:60){nodes{isResolved}}
+          1               state
+          1             statusCheckRollup {
+          1                   __typename
+          1       url
+--- inbox records before=2 after=2
+
+=== S7: PR merged but meta still has pr= (teardown pending) -> not swept ===
+sweep exit=0
+--- gh calls: 10 (1 aliased per-number fetch)
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          2  reviewThreads(first:60){nodes{isResolved}}
+--- inbox records before=2 after=2
+
+=== S8: lane listed in remote_lanes -> registered red PR is not steered locally ===
+pr-stall: no live owner for https://github.com/o/r/pull/41 (red:ci); assign a babysit lane
+sweep exit=0
+--- gh calls: 10 (1 aliased per-number fetch)
+          1 api graphql -f query=query($owner:String!,$name:String!){repository(owner:$owner,name:$nam
+          1 api graphql -f query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on 
+          2  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
+          2  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+          2    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state t
+          2  reviewThreads(first:60){nodes{isResolved}}
+--- inbox records before=2 after=2
