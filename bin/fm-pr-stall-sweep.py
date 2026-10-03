@@ -66,17 +66,19 @@ def sh(args, timeout=15):
         return 1, ""
 
 
-Q = """query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on PullRequest{
- number url isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
- reviewThreads(first:60){nodes{isResolved}}
- commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
-   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}}"""
-
-Q_ONE = """query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
+PR_FIELDS = """
  number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
  reviewThreads(first:60){nodes{isResolved}}
  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
-   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}"""
+   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}"""
+
+Q = "query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on PullRequest{" + PR_FIELDS + "}}}}"
+
+
+def q_numbers(numbers):
+    """One aliased query for every directly fetched pull request number."""
+    body = " ".join(f"pr{n}: pullRequest(number:{n}){{{PR_FIELDS}}}" for n in numbers)
+    return "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){" + body + "}}"
 
 
 def registered_prs():
@@ -122,20 +124,19 @@ def prs():
     # Search is capped at 100 results. Fetch registered and takeover identities
     # directly so a live owner is never reported ownerless merely because the PR
     # fell past that cap or was opened by an account outside the author list.
+    missing = [n for n in numbers if n not in seen]
+    if not missing:
+        return out
     owner, name = REPO.split("/", 1) if "/" in REPO else (REPO, "")
-    for number in numbers:
-        if number in seen:
-            continue
-        rc, raw = sh([GH_BIN, "api", "graphql", "-f", f"query={Q_ONE}",
-                      "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}"], timeout=12)
-        if rc:
-            continue
-        try:
-            node = json.loads(raw)["data"]["repository"]["pullRequest"]
-        except (KeyError, TypeError, json.JSONDecodeError):
-            continue
+    _, raw = sh([GH_BIN, "api", "graphql", "-f", f"query={q_numbers(missing)}",
+                 "-f", f"owner={owner}", "-f", f"name={name}"], timeout=12)
+    try:
+        repo = json.loads(raw)["data"]["repository"] or {}
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return out
+    for number in missing:
+        node = repo.get(f"pr{number}")
         if node and node.get("state") == "OPEN" and not node.get("isDraft"):
-            seen.add(number)
             out.append(node)
     return out
 

@@ -23,6 +23,7 @@ pr_fixture() {
   cat > "$work/pr.json" <<JSON
 {"data":{"repository":{"defaultBranchRef":{"name":"$2"},"pullRequest":{"number":7,"url":"https://github.com/owner/repo/pull/7","state":"${4:-OPEN}","isDraft":false,"baseRefName":"$1","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","author":{"login":"author"},"commits":{"nodes":[{"commit":{"oid":"0123456789012345678901234567890123456789","statusCheckRollup":{"state":"SUCCESS","contexts":{"nodes":[{"name":"$3","conclusion":"SUCCESS"}]}}}}]},"reviewThreads":{"nodes":[]}}}}}
 JSON
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); r=d["data"]["repository"]; r["pr7"]=r["pullRequest"]; json.dump(d, open(sys.argv[2], "w"))' "$work/pr.json" "$work/pr-many.json"
 }
 printf '%s\n' '{"data":{"repository":{"squashMergeAllowed":false,"mergeCommitAllowed":true,"rebaseMergeAllowed":true}}}' > "$work/methods.json"
 cat > "$work/bin/gh" <<EOF_GH
@@ -35,6 +36,7 @@ fi
 if [ "\${1:-}" = api ] && [ "\${2:-}" = graphql ]; then
   case "\$*" in
     *squashMergeAllowed*) cat "$work/methods.json" ;;
+    *"pr7: pullRequest"*) cat "$work/pr-many.json" ;;
     *) cat "$work/pr.json" ;;
   esac
   exit 0
@@ -186,6 +188,25 @@ spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
 sweep = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sweep)
 assert [p["number"] for p in sweep.prs()] == [7], "takeover PR was not fetched"
+PY
+# Every directly fetched number shares one request, string-typed repository
+# variables, and an unresolved number does not hide the others.
+write_config <<'JSON'
+{"repo": "2048/2048", "authors": [], "takeovers": {"7": "task-b", "8": "task-c", "9": "task-d"}}
+JSON
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+calls = []
+repo = {"pr7": {"number": 7, "state": "OPEN", "isDraft": False}, "pr8": None,
+        "pr9": {"number": 9, "state": "CLOSED", "isDraft": False}}
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (1, json.dumps({"data": {"repository": repo}, "errors": [{}]})))
+assert [p["number"] for p in sweep.prs()] == [7], "aliased fetch lost an open PR"
+assert len(calls) == 1, calls
+assert "owner=2048" in calls[0] and calls[0][calls[0].index("owner=2048") - 1] == "-f", calls[0]
+assert "name=2048" in calls[0] and calls[0][calls[0].index("name=2048") - 1] == "-f", calls[0]
 PY
 # A search result from a deleted author account does not abort the sweep.
 write_config <<'JSON'
