@@ -115,6 +115,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-quota-choose.sh`     | Choose the first candidate with known positive quota from an ordered harness:model list |
 | `fm-vendor-auth-probe.sh`| Run one hard-bounded, non-destructive authentication probe of a named vendor CLI and report the fact |
 | `fm-wake-drain.sh`       | Present and acknowledge the current actor's claimed wake rows alongside status, outcome-backstop, decision, divergence, supervision-host outcome, recovery, and supervision checks |
+| `fm-supervision-context.sh` | Run one wake drain and print its labeled, untruncated output with drain stderr (acknowledgement and guard alarms) first; never acknowledges |
 | `fm-wake-grant.sh`       | Serialize Pi supervision-branch wake-row claim activation, publication, release, and deactivation |
 | `fm-wake-lib.sh`         | Shared durable wake queue, recovery generations, portable locks, and watcher identity/health helpers |
 | `fm-path-lib.sh`         | Fork-free `dirname`/`basename` equivalents with no source-time side effects             |
@@ -176,7 +177,5 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-voice-client.py`     | The laptop end of the spoken interface: capture, playback, and turn timing over SSH; audio devices unverified |
 | `fm_voice_frame.py`      | The wire format both machines share, copied to the laptop beside the client          |
 | `fm_voice_records.py`    | What a spoken answer may read, and the handover that queues real work                |
-
-`bin/fm-supervision-context.sh` runs exactly one wake drain per invocation and prints its output labeled and untruncated, leading with the drain exit, its full stderr (the generation-bound acknowledgement and any watcher-down or worktree-tangle alarm), then the drain body and its processing commands; it never acknowledges for you.
 
 For current state across several crews, read `bin/fm-fleet-snapshot.sh --json` once (each task's `current_state`, with every per-crew read time-bounded) instead of running `bin/fm-crew-state.sh <id>` per crew.
