@@ -177,6 +177,6 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm_voice_frame.py`      | The wire format both machines share, copied to the laptop beside the client          |
 | `fm_voice_records.py`    | What a spoken answer may read, and the handover that queues real work                |
 
-`bin/fm-supervision-context.sh` performs one wake drain and emits a bounded compact or JSON snapshot under `state/supervision-context/`; repeat calls for the same generation reuse its content-addressed record, and the printed acknowledgement remains generation-bound.
+`bin/fm-supervision-context.sh` runs exactly one wake drain per invocation and prints its output bounded and labeled, followed by the drain's generation-bound acknowledgement and processing commands; it never acknowledges for you.
 
-`bin/fm-crew-state.sh --json <id>...` and `bin/fm-crew-state.sh --all --json` batch current-state reconciliation into one JSON read while retaining the single-id classifier.
+For current state across several crews, read `bin/fm-fleet-snapshot.sh --json` once (each task's `current_state`, with every per-crew read time-bounded) instead of running `bin/fm-crew-state.sh <id>` per crew.

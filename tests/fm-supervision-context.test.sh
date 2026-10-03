@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behavior tests for the bounded supervision snapshot and fleet JSON state.
+# Behavior tests for the bounded supervision context presentation.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -8,48 +8,52 @@ set -u
 
 TMP_ROOT=$(fm_test_tmproot fm-supervision-context)
 CONTEXT="$ROOT/bin/fm-supervision-context.sh"
-CREW="$ROOT/bin/fm-crew-state.sh"
 
-snapshot_is_reused_without_a_second_drain() {
-  local dir first second
-  dir=$(make_case stable)
+mkdir -p "$TMP_ROOT/config"
+: > "$TMP_ROOT/config/supervision-host-off"
+export FM_CONFIG_OVERRIDE="$TMP_ROOT/config"
+
+context_prints_wake_and_acknowledgement() {
+  local dir out
+  dir=$(make_case wake)
   append_wake "$dir/state" signal event-key 'event path'
-  first="$dir/first.out"
-  second="$dir/second.out"
-  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" --format compact >"$first" || fail "first snapshot failed"
-  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" --format compact >"$second" || fail "cached snapshot failed"
-  assert_equals "$(cat "$first")" "$(cat "$second")" "same generation did not reuse the immutable snapshot"
-  grep -F 'WAKE_ACK_REQUIRED:' "$first" >/dev/null || fail "snapshot omitted the exact acknowledgement command"
-  [ "$(find "$dir/state/supervision-context" -name '*.compact' | wc -l)" -eq 1 ] \
-    || fail "same generation created more than one compact snapshot"
-  pass "supervision context drains once and reuses its content-addressed snapshot"
+  out="$dir/context.out"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >"$out" || fail "context failed: $(cat "$out")"
+  grep -F 'event path' "$out" >/dev/null || fail "context omitted the wake row: $(cat "$out")"
+  grep -F 'WAKE_ACK_REQUIRED:' "$out" >/dev/null || fail "context omitted the exact acknowledgement command"
+  grep -Fx 'drain-exit: 0' "$out" >/dev/null || fail "context did not report the drain exit"
+  [ ! -e "$dir/state/supervision-context" ] || fail "context persisted a snapshot store"
+  pass "supervision context presents the drained wake and its acknowledgement"
 }
 
-json_snapshot_is_bounded_and_valid() {
-  local dir out
-  dir=$(make_case json)
-  append_wake "$dir/state" check check-key 'event/path'
-  out=$(FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" --format json) || fail "JSON snapshot failed"
-  printf '%s\n' "$out" | jq -e '.snapshot_key and (.drain_exit == 0) and (.record | type == "string")' >/dev/null \
-    || fail "JSON snapshot is not the documented bounded record"
-  [ "$(printf '%s' "$out" | wc -c)" -lt 40000 ] || fail "default JSON snapshot exceeded its bound"
-  pass "JSON supervision context is valid and bounded"
+context_drains_on_every_invocation() {
+  local dir out status
+  dir=$(make_case every-invocation)
+  status="$dir/state/task1.status"
+  printf 'note: bootstrap cursor line\n' > "$status"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >/dev/null || fail "first context failed"
+  printf 'note: captain said use REST\n' >> "$status"
+  out="$dir/second.out"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >"$out" || fail "second context failed: $(cat "$out")"
+  grep -F 'task1 note: captain said use REST' "$out" >/dev/null \
+    || fail "a status line added without a queue row was not presented: $(cat "$out")"
+  pass "supervision context reruns the drain even when the wake queue is unchanged"
 }
 
-fleet_state_json_reads_multiple_ids_once() {
-  local dir out
-  dir=$(make_case crew-json)
-  : > "$dir/state/one.meta"
-  : > "$dir/state/two.meta"
-  out=$(FM_STATE_OVERRIDE="$dir/state" "$CREW" --json one two) || fail "multi-id crew state failed"
-  printf '%s\n' "$out" | jq -e 'length == 2 and .[0].id == "one" and .[1].id == "two" and all(.[]; .state == "unknown")' >/dev/null \
-    || fail "multi-id crew state did not return stable JSON entries"
-  out=$(FM_STATE_OVERRIDE="$dir/state" "$CREW" --all --json) || fail "--all crew state failed"
-  printf '%s\n' "$out" | jq -e 'map(.id) | sort == ["one", "two"]' >/dev/null \
-    || fail "--all crew state omitted metadata ids"
-  pass "crew state batches multiple ids and --all in one JSON call"
+context_rejects_arguments() {
+  local dir arg
+  dir=$(make_case args)
+  for arg in --format --full --since-seq --home; do
+    if FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" "$arg" >/dev/null 2>&1; then
+      fail "context accepted removed option $arg"
+    fi
+  done
+  if FM_STATE_OVERRIDE="$dir/state" "$ROOT/bin/fm-wake-drain.sh" --format compact >/dev/null 2>&1; then
+    fail "wake drain accepted a presentation flag"
+  fi
+  pass "supervision context and wake drain expose only their single presentation"
 }
 
-snapshot_is_reused_without_a_second_drain
-json_snapshot_is_bounded_and_valid
-fleet_state_json_reads_multiple_ids_once
+context_prints_wake_and_acknowledgement
+context_drains_on_every_invocation
+context_rejects_arguments

@@ -1,7 +1,7 @@
 Mode: Pi extension background wake.
 
 When this session owns supervision, in either posture:
-1. Run `bin/fm-supervision-context.sh --format compact` once and keep its bounded snapshot.
+1. Run `bin/fm-supervision-context.sh` once and keep its bounded snapshot.
    After handling the snapshot's wake rows, event paths, open decisions, unread status, branch outcomes, and divergence, run its exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
 2. Confirm the Pi primary auto-loaded both project extensions (plain `pi` or `pi-signed`, after approving project trust once per clone); if not, restart the selected executable with `-e __FM_PI_TURNEND_EXT__ -e __FM_PI_EXT__` as a trust-free fallback.
 3. Initial process cycle only: make the one required `fm_watch_arm_pi` call; if startup already owned the fleet lock, this is an ownership-based no-op.
@@ -14,7 +14,7 @@ When this session owns supervision, in either posture:
 7. After an actionable child close, the extension rechecks session-lock ownership and verifies one successor before it delivers the follow-up wake; its bounded fallback is defined in `docs/watcher-continuity.md`.
 8. Ordinary work, turn completion, and ordinary signal, stale, check, heartbeat, or other wake handling: do not call `fm_watch_arm_pi` again because continuity is extension-owned rather than model-memory-owned.
 9. An unexpected child close enters bounded exponential retry, and an exhausted retry or lost session lock is surfaced as a watcher failure instead of disappearing.
-10. Missing, failed, or unhealthy cycle only: if a later notification explicitly reports one of those repair conditions, run `bin/fm-supervision-context.sh --format compact` once, inspect the failure text, call `fm_watch_arm_pi`, and restart the selected Pi-family executable with both extensions loaded if needed.
+10. Missing, failed, or unhealthy cycle only: if a later notification explicitly reports one of those repair conditions, run `bin/fm-supervision-context.sh` once, inspect the failure text, call `fm_watch_arm_pi`, and restart the selected Pi-family executable with both extensions loaded if needed.
    A redundant call while the extension owns an arm child or scheduled retry is an ownership-based `watcher: unchanged` no-op, not an independent health claim.
 11. Never use shell `&` for watcher supervision.
    The arm mechanism above is extension-owned, not a model tool call, but a manual recovery probe that backgrounds, pipes, or bundles the arm is denied automatically by the PreToolUse seatbelt (`bin/fm-arm-pretool-check.sh`, wired into the turn-end guard extension at `__FM_PI_TURNEND_EXT__`).

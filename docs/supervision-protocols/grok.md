@@ -1,7 +1,7 @@
 Mode: Grok background-notify supervision.
 
 When this session owns supervision and away mode is not active:
-1. Run `bin/fm-supervision-context.sh --format compact` once and keep its bounded snapshot.
+1. Run `bin/fm-supervision-context.sh` once and keep its bounded snapshot.
    After handling the snapshot's wake rows, event paths, open decisions, unread status, branch outcomes, and divergence, run its exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
 2. Source `__FM_X_MODE_ENV__` first when Relay is active.
 3. First cycle: arm with Grok's tracked background tool, as its own call:
@@ -22,7 +22,7 @@ When this session owns supervision and away mode is not active:
 
 Grok injects a synthetic user message with `synthetic_reason: task_completed` when the background arm completes.
 When you see a background-task-completed system reminder for the arm:
-1. Run `bin/fm-supervision-context.sh --format compact` once first.
+1. Run `bin/fm-supervision-context.sh` once first.
 2. Optionally fetch arm output with `get_command_or_subagent_output(<task_id>)` for the reason line.
 3. Handle `signal`, `stale`, `check`, or `heartbeat` using the harness-neutral contract in `AGENTS.md`.
 4. Ordinary wake: re-arm the next cycle with the same background `__FM_GROK_ARM__` call if the home still needs supervision, as `bin/fm-supervision-lib.sh` defines it.
