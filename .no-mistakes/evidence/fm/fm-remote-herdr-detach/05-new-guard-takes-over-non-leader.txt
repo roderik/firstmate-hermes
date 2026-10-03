@@ -1,0 +1,25 @@
+=== scenario: takeover of a pre-existing non-leader server (session=fm-lab-guard-1890449-29080)
+--- pre-existing server pid 1991189: 1991189 1991183 1991176 (getsid==pid? NO)
+--- machine add against the pre-existing server:
+remote herdr server on localhost (session fm-lab-guard-1890449-29080) is still running v0.9.3; it will use 0.9.3 after it restarts.
+error: remote server is not ready for saved machines; machine was not saved
+rc=1
+--- run new guard (launchd-style single launch)
+fm-remote-herdr-guard: session fm-lab-guard-1890449-29080 is running but no herdr process could be proven to own /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr.sock
+fm-remote-herdr-guard: session fm-lab-guard-1890449-29080 is served by an unproven process born outside the Aqua login session (unknown); its panes cannot reach the login keychain, taking the session over
+fm-remote-herdr-guard: session fm-lab-guard-1890449-29080 released its socket after 0 tenths of a second
+fm-remote-herdr-guard: starting the herdr server for session fm-lab-guard-1890449-29080 as its own session leader (pid 1993496)
+herdr server running; you can use any herdr CLI command in another terminal.
+api socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr.sock
+client socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-client.sock
+logs: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-server.log
+did you mean to open the Herdr TUI? run `herdr`; you do not need `herdr server`.
+--- pre-existing pid 1991189 alive? no
+1993496 1993496 1993496 1991183 /home/roderik/.local/bin/herdr server --session fm-lab-guard-1890449-29080
+--- new server pid 1993496 getsid==pid? YES
+--- machine add after takeover:
+Saved SSH machine fcb61913af37c65e2751d9b84e3151f5. Remote server is ready.
+Open Herdr clients connect automatically.
+rc=0
+guard exit 0
+no orphaned server process

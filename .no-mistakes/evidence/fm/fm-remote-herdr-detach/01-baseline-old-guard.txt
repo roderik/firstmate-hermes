@@ -1,0 +1,23 @@
+=== scenario: baseline-old (guard=/tmp/fmlab-old/bin/fm-remote-herdr-guard.sh, launch=child, session=fm-lab-guard-1890449-29080)
+--- launcher process: pid=1951218 pgid=1951218 sid=1951210
+--- guard log:
+fm-remote-herdr-guard: no server owns session fm-lab-guard-1890449-29080
+fm-remote-herdr-guard: starting the herdr server for session fm-lab-guard-1890449-29080 inside this launch agent (pid 1951281)
+herdr server running; you can use any herdr CLI command in another terminal.
+api socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr.sock
+client socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-client.sock
+logs: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-server.log
+did you mean to open the Herdr TUI? run `herdr`; you do not need `herdr server`.
+--- guard job pid 1951281: 1951281 1951218 1951210 herdr
+--- herdr server processes for fm-lab-guard-1890449-29080 (pid pgid sid ppid cmd):
+1951281 1951218 1951210 1951218 /home/roderik/.local/bin/herdr server --session fm-lab-guard-1890449-29080
+--- server pid 1951281: getsid==pid? NO; server pid == guard job pid? YES
+--- herdr machine add localhost --remote-session fm-lab-guard-1890449-29080 (isolated client state):
+remote herdr server on localhost (session fm-lab-guard-1890449-29080) is still running v0.9.3; it will use 0.9.3 after it restarts.
+error: remote server is not ready for saved machines; machine was not saved
+machine add rc=1
+No saved SSH machines.
+--- stopping lab server via SIGTERM to guard job pid 1951281
+guard job exit status: 0
+server still running after stop? false
+no orphaned server process

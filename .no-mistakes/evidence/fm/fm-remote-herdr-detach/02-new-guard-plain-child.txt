@@ -1,0 +1,23 @@
+=== scenario: new-child (guard=/home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40RPDC405KRZB3B6B32WFFZ/bin/fm-remote-herdr-guard.sh, launch=child, session=fm-lab-guard-1890449-29080)
+--- launcher process: pid=1958655 pgid=1958655 sid=1958641
+--- guard log:
+fm-remote-herdr-guard: no server owns session fm-lab-guard-1890449-29080
+fm-remote-herdr-guard: starting the herdr server for session fm-lab-guard-1890449-29080 as its own session leader (pid 1958920)
+herdr server running; you can use any herdr CLI command in another terminal.
+api socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr.sock
+client socket: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-client.sock
+logs: /home/roderik/.config/herdr/sessions/fm-lab-guard-1890449-29080/herdr-server.log
+did you mean to open the Herdr TUI? run `herdr`; you do not need `herdr server`.
+--- guard job pid 1958920: 1958920 1958920 1958920 herdr
+--- herdr server processes for fm-lab-guard-1890449-29080 (pid pgid sid ppid cmd):
+1958920 1958920 1958920 1958655 /home/roderik/.local/bin/herdr server --session fm-lab-guard-1890449-29080
+--- server pid 1958920: getsid==pid? YES; server pid == guard job pid? YES
+--- herdr machine add localhost --remote-session fm-lab-guard-1890449-29080 (isolated client state):
+Saved SSH machine eac76e07cb07e92dec7aed6d77913026. Remote server is ready.
+Open Herdr clients connect automatically.
+machine add rc=0
+eac76e07cb07e92dec7aed6d77913026	lab-new-child	localhost	fm-lab-guard-1890449-29080	enabled
+--- stopping lab server via SIGTERM to guard job pid 1958920
+guard job exit status: 0
+server still running after stop? false
+no orphaned server process
