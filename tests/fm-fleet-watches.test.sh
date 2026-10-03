@@ -18,11 +18,12 @@ write_config <<'JSON'
   "rollout_workflows": [{"name": "Release", "branch": "main"}]
 }
 JSON
-# pr_fixture <base> <default-branch> <check-name>
+# pr_fixture <base> <default-branch> <check-name> [state]
 pr_fixture() {
   cat > "$work/pr.json" <<JSON
-{"data":{"repository":{"defaultBranchRef":{"name":"$2"},"pullRequest":{"number":7,"url":"https://github.com/owner/repo/pull/7","isDraft":false,"baseRefName":"$1","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","author":{"login":"author"},"commits":{"nodes":[{"commit":{"oid":"0123456789012345678901234567890123456789","statusCheckRollup":{"state":"SUCCESS","contexts":{"nodes":[{"name":"$3","conclusion":"SUCCESS"}]}}}}]},"reviewThreads":{"nodes":[]}}}}}
+{"data":{"repository":{"defaultBranchRef":{"name":"$2"},"pullRequest":{"number":7,"url":"https://github.com/owner/repo/pull/7","state":"${4:-OPEN}","isDraft":false,"baseRefName":"$1","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","author":{"login":"author"},"commits":{"nodes":[{"commit":{"oid":"0123456789012345678901234567890123456789","statusCheckRollup":{"state":"SUCCESS","contexts":{"nodes":[{"name":"$3","conclusion":"SUCCESS"}]}}}}]},"reviewThreads":{"nodes":[]}}}}}
 JSON
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); r=d["data"]["repository"]; r["pr7"]=r["pullRequest"]; json.dump(d, open(sys.argv[2], "w"))' "$work/pr.json" "$work/pr-many.json"
 }
 printf '%s\n' '{"data":{"repository":{"squashMergeAllowed":false,"mergeCommitAllowed":true,"rebaseMergeAllowed":true}}}' > "$work/methods.json"
 cat > "$work/bin/gh" <<EOF_GH
@@ -35,6 +36,7 @@ fi
 if [ "\${1:-}" = api ] && [ "\${2:-}" = graphql ]; then
   case "\$*" in
     *squashMergeAllowed*) cat "$work/methods.json" ;;
+    *"pr7: pullRequest"*) cat "$work/pr-many.json" ;;
     *) cat "$work/pr.json" ;;
   esac
   exit 0
@@ -124,6 +126,181 @@ PY
 sed -n 1p "$work/steer.out" | grep -qxF 'https://github.com/owner/repo/pull/7 trails trunk; run team-sync.'
 sed -n 2p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 has 2 unresolved review thread(s)\.'
 sed -n 3p "$work/steer.out" | grep -q '^https://github.com/owner/repo/pull/7 conflicts with trunk\.'
+# Registered PRs remain in the sweep even when their author is outside the
+# configured author allowlist, and ownership uses both pr= and the branch.
+printf '%s\n' 'window=fm-task-a' 'branch=feature/task-a' 'pr=https://github.com/owner/repo/pull/7' > "$work/home/state/task-a.meta"
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": ["different-author"]}
+JSON
+pr_fixture trunk trunk "Unit Tests"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/registered.out" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+items = sweep.prs()
+assert any(p["number"] == 7 for p in items), "registered PR was filtered by author"
+assert sweep.owner_of(items[0], sweep.owners()) == "task-a", "registered PR did not map to its owner"
+print("registered")
+PY
+grep -qxF registered "$work/registered.out"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" > "$work/red.out" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+pr = {"url": "https://github.com/owner/repo/pull/7", "number": 7,
+      "baseRefName": "trunk", "headRefName": "feature/task-a", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+      "author": {"login": "different-author"},
+      "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef",
+        "statusCheckRollup": {"state": "FAILURE", "contexts": {"nodes": [
+          {"name": "Unit Tests", "conclusion": "FAILURE", "detailsUrl": "https://ci.invalid/1"}]}}}}]}}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: {"task-a": {"branch": "feature/task-a", "pr": pr["url"]}}
+calls = []
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+sweep.main()
+assert any("fm-send.sh" in args[0] and args[1] == "task-a" for args in calls), "red PR did not wake its owner"
+print("red steer")
+PY
+grep -qxF 'red steer' "$work/red.out"
+# A registered PR that is no longer open is not swept.
+pr_fixture trunk trunk "Unit Tests" MERGED
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+assert sweep.prs() == [], "a merged registered PR was swept"
+PY
+# A configured takeover is fetched by number even when no task registered it
+# and its author is outside the allowlist.
+rm -f "$work/home/state/task-a.meta"
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": [], "takeovers": {"7": "task-b"}}
+JSON
+pr_fixture trunk trunk "Unit Tests"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+assert [p["number"] for p in sweep.prs()] == [7], "takeover PR was not fetched"
+PY
+# Every directly fetched number shares one request, string-typed repository
+# variables, and an unresolved number does not hide the others.
+write_config <<'JSON'
+{"repo": "2048/2048", "authors": [], "takeovers": {"7": "task-b", "8": "task-c", "9": "task-d"}}
+JSON
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+calls = []
+repo = {"pr7": {"number": 7, "state": "OPEN", "isDraft": False}, "pr8": None,
+        "pr9": {"number": 9, "state": "CLOSED", "isDraft": False}}
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (1, json.dumps({"data": {"repository": repo}, "errors": [{}]})))
+assert [p["number"] for p in sweep.prs()] == [7], "aliased fetch lost an open PR"
+assert len(calls) == 1, calls
+assert "owner=2048" in calls[0] and calls[0][calls[0].index("owner=2048") - 1] == "-f", calls[0]
+assert "name=2048" in calls[0] and calls[0][calls[0].index("name=2048") - 1] == "-f", calls[0]
+PY
+# A search result from a deleted author account does not abort the sweep.
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": ["author"]}
+JSON
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+nodes = [{"number": 8, "author": None}, {"number": 9, "author": {"login": "author"}}]
+sweep.sh = lambda args, timeout=15: (0, json.dumps({"data": {"search": {"nodes": nodes}}}))
+assert [p["number"] for p in sweep.prs()] == [9], "ghost-author search result broke the sweep"
+PY
+# Remote lanes are neither matched by pr= or branch nor steered locally.
+write_config <<'JSON'
+{"repo": "owner/repo", "authors": ["author"], "remote_lanes": ["task-r"]}
+JSON
+printf '%s\n' 'see https://github.com/owner/repo/pull/7' > "$work/home/state/task-r.status"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+url = "https://github.com/owner/repo/pull/7"
+pr = {"url": url, "number": 7, "baseRefName": "trunk", "headRefName": "feature/task-r", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef", "statusCheckRollup": {"state": "FAILURE",
+        "contexts": {"nodes": [{"name": "Unit Tests", "conclusion": "FAILURE", "detailsUrl": "https://ci.invalid/1"}]}}}}]}}
+metas = {"task-r": {"branch": "feature/task-r", "pr": url}}
+assert sweep.owner_of(pr, {"task-r": metas["task-r"], "task-x": {"branch": "", "pr": ""}}) == "task-r"
+sweep.REMOTE = {"task-r", "task-x"}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: metas
+calls = []
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+sweep.main()
+assert not any("fm-send.sh" in args[0] for args in calls), "remote lane was steered locally"
+PY
+# A green PR owned only through a remote lane's status mention, with no local
+# metadata for that lane, is neither a crash nor a steer.
+rm -f "$work/home/state/.pr-stall-seen.json"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+url = "https://github.com/owner/repo/pull/7"
+pr = {"url": url, "number": 7, "baseRefName": "trunk", "headRefName": "feature/task-r", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef", "statusCheckRollup": {"state": "SUCCESS",
+        "contexts": {"nodes": [{"name": "Unit Tests", "conclusion": "SUCCESS"}]}}}}]}}
+sweep.REMOTE = {"task-r"}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: {}
+calls = []
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+sweep.main()
+assert not any("fm-send.sh" in args[0] for args in calls), "remote lane without metadata was steered"
+PY
+test -f "$work/home/state/.pr-stall-seen.json"
+rm -f "$work/home/state/task-r.status" "$work/home/state/.pr-stall-seen.json"
+# A registered PR that turns green without an armed merge poll (its ready
+# check failed while CI was pending) wakes its owner to report ready again.
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" "$work/home/state" <<'PY'
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+url = "https://github.com/owner/repo/pull/7"
+pr = {"url": url, "number": 7, "baseRefName": "trunk", "headRefName": "feature/task-a", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef", "statusCheckRollup": {"state": "SUCCESS",
+        "contexts": {"nodes": [{"name": "Unit Tests", "conclusion": "SUCCESS"}]}}}}]}}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: {"task-a": {"branch": "feature/task-a", "pr": url}}
+def run(path):
+    calls = []
+    sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+    try:
+        os.remove(sweep.SEEN)
+    except OSError:
+        pass
+    sweep.main()
+    return [a for a in calls if "fm-send.sh" in a[0]]
+sent = run(None)
+assert len(sent) == 1 and sent[0][1] == "task-a" and "report the pull request ready" in sent[0][2], sent
+open(os.path.join(sys.argv[2], "task-a.check.sh"), "w").close()
+assert run(None) == [], "an armed merge poll must not be re-steered"
+os.remove(os.path.join(sys.argv[2], "task-a.check.sh"))
+PY
+rm -f "$work/home/state/.pr-stall-seen.json"
+
+
 write_config <<'JSON'
 {"repo": "owner/repo", "authors": ["author"], "steering": ["not", "an", "object"]}
 JSON

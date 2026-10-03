@@ -2,12 +2,13 @@
 """Keep configured fleet pull requests moving.
 
 Every watcher check cycle:
-  - lists open pull requests by configured authors;
+  - lists open pull requests by configured authors, registered task pr= URLs, and takeovers;
   - maps each PR to its owning lane (meta branch, takeover table, or a recent status mention);
   - classifies the stall (conflict, behind, failing checks, cancelled-only rollup, open threads);
   - steers the owner once per (PR, head, problem) with the exact action and failing job links,
     re-nudges if the same problem is still there after RENUDGE_S;
   - admin-merges PRs the fleet eligibility script accepts;
+  - wakes the owner of a registered green PR that has no armed merge poll;
   - prints a line only for merges, PRs with no live owner, and long stalls.
 The configured budget keeps each sweep bounded so work resumes next cycle.
 """
@@ -31,6 +32,7 @@ STEERING = {
     "behind": "{url} is behind {base}. Bring {base} into the branch, push, and keep watching the pull request.",
     "cancelled": "{url} rollup is red only from cancelled runs ({cancelled}). Re-run each cancelled run once if no sibling run of that workflow is active, then keep watching the pull request.",
     "threads": "{url} has {threads} unresolved review thread(s). Fix or answer each thread, resolve it, push, and keep watching the pull request.",
+    "ready": "{url} is green on head {head} but no merge watch is armed for it. Re-run the local ready check and report the pull request ready again.",
 }
 STEERING_DEFAULTS = dict(STEERING)
 try:
@@ -64,19 +66,46 @@ def sh(args, timeout=15):
         return 1, ""
 
 
-Q = """query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on PullRequest{
- number url isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+PR_FIELDS = """
+ number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
  reviewThreads(first:60){nodes{isResolved}}
  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
-   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}}"""
+   ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}"""
+
+Q = "query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on PullRequest{" + PR_FIELDS + "}}}}"
+
+
+def q_numbers(numbers):
+    """One aliased query for every directly fetched pull request number."""
+    body = " ".join(f"pr{n}: pullRequest(number:{n}){{{PR_FIELDS}}}" for n in numbers)
+    return "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){" + body + "}}"
+
+
+def registered_prs():
+    """Read canonical PR URLs from task metadata for owner-independent coverage."""
+    out = []
+    for m in glob.glob(f"{STATE}/*.meta"):
+        try:
+            text = open(m, encoding="utf-8").read()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if line.startswith("pr=https://github.com/"):
+                match = re.fullmatch(r"pr=(https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*))", line)
+                if match:
+                    out.append((match.group(1), match.group(2), int(match.group(3))))
+                break
+    return out
 
 
 def prs():
     out = []
     authors = cfg.get("authors", []) if "cfg" in globals() else [os.environ.get("FM_FLEET_PR_AUTHORS", "")]
     authors = [a for a in authors if a]
-    if not REPO or not authors:
+    numbers = sorted({entry[2] for entry in registered_prs() if entry[1] == REPO} | set(TAKEOVERS))
+    if not REPO or (not authors and not numbers):
         return out
+    seen = set()
     for q in [f"repo:{REPO} is:pr is:open author:{a}" for a in authors]:
         rc, o = sh([GH_BIN, "api", "graphql", "-f", f"query={Q}", "-f", f"q={q}"], timeout=12)
         if rc:
@@ -86,34 +115,72 @@ def prs():
         except (KeyError, TypeError, json.JSONDecodeError):
             continue
         for n in nodes:
-            if n["author"]["login"] not in authors and n["number"] not in TAKEOVERS:
+            if not n or n.get("number") in seen:
                 continue
+            if (n.get("author") or {}).get("login") not in authors:
+                continue
+            seen.add(n["number"])
             out.append(n)
+    # Search is capped at 100 results. Fetch registered and takeover identities
+    # directly so a live owner is never reported ownerless merely because the PR
+    # fell past that cap or was opened by an account outside the author list.
+    missing = [n for n in numbers if n not in seen]
+    if not missing:
+        return out
+    owner, name = REPO.split("/", 1) if "/" in REPO else (REPO, "")
+    _, raw = sh([GH_BIN, "api", "graphql", "-f", f"query={q_numbers(missing)}",
+                 "-f", f"owner={owner}", "-f", f"name={name}"], timeout=12)
+    try:
+        repo = json.loads(raw)["data"]["repository"] or {}
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return out
+    for number in missing:
+        node = repo.get(f"pr{number}")
+        if node and node.get("state") == "OPEN" and not node.get("isDraft"):
+            out.append(node)
     return out
 
 
 def owners():
-    metas = {}
+    records = {}
     for m in glob.glob(f"{STATE}/*.meta"):
         tid = os.path.basename(m)[:-5]
-        b = re.search(r"^branch=(.*)$", open(m).read(), re.M)
-        metas[tid] = b.group(1) if b else ""
-    return metas
+        try:
+            text = open(m, encoding="utf-8").read()
+        except OSError:
+            continue
+        branch = ""
+        pr = ""
+        for line in text.splitlines():
+            if line.startswith("branch="):
+                branch = line[7:]
+            elif line.startswith("pr="):
+                pr = line[3:]
+        records[tid] = {"branch": branch, "pr": pr}
+    return records
 
 
 def owner_of(pr, metas):
     n = pr["number"]
+    url = pr.get("url", "")
     if n in TAKEOVERS and TAKEOVERS[n] in metas:
         return TAKEOVERS[n]
-    for tid, br in metas.items():
-        if br and br == pr["headRefName"] and tid not in REMOTE:
+    # A canonical pr= is authoritative for a takeover or a stacked lane whose
+    # branch moved after the PR opened.
+    for tid, record in metas.items():
+        if record.get("pr") == url and tid not in REMOTE:
+            return tid
+    # Branch ownership covers stacked lanes and PRs whose metadata was recorded
+    # before the forge returned the canonical URL.
+    for tid, record in metas.items():
+        if record.get("branch") and record["branch"] == pr.get("headRefName") and tid not in REMOTE:
             return tid
     best = None
     for tid in metas:
         if tid in REMOTE:
             continue
         try:
-            tail = open(f"{STATE}/{tid}.status").read()[-6000:]
+            tail = open(f"{STATE}/{tid}.status", encoding="utf-8").read()[-6000:]
         except OSError:
             continue
         if f"/pull/{n}" in tail:
@@ -122,7 +189,7 @@ def owner_of(pr, metas):
         return best
     for tid in REMOTE:
         try:
-            if f"/pull/{n}" in open(f"{STATE}/{tid}.status").read()[-6000:]:
+            if f"/pull/{n}" in open(f"{STATE}/{tid}.status", encoding="utf-8").read()[-6000:]:
                 return tid
         except OSError:
             pass
@@ -163,7 +230,7 @@ def classify(pr):
         return head, "running", None
     if pr["isDraft"]:
         return head, "draft-green", None
-    return head, "green", None
+    return head, "green", steer("ready")
 
 
 def main():
@@ -189,8 +256,13 @@ def main():
                 rc, o = sh(["bash", os.path.join(CODE_ROOT, "bin", "fm-pr-fleet-admin-merge.sh"), pr["url"]], timeout=15)
                 if "merged:" in o:
                     lines.append(f"pr-stall: merged {pr['url']}")
-            seen[key] = rec
-            continue
+                    seen[key] = rec
+                    continue
+            own = owner_of(pr, metas)
+            # A registration whose ready check failed while CI was pending has
+            # no merge watch; once green, wake its owner to report ready again.
+            if not own or metas.get(own, {}).get("pr") != pr["url"] or os.path.exists(f"{STATE}/{own}.check.sh"):
+                action = None
         if action is None:
             seen[key] = rec
             continue

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Record a PR-ready task: store one validated canonical pr=<url> and the forge's
 # exact pr_head=<sha> when available, then atomically arm a static merge poll.
+# A failed project ready check still records pr= and ownership but no pr_head=,
+# arms no poll, and exits non-zero; the fleet stall sweep wakes the owner to
+# re-run this once the pull request is green.
 # Refuses when bin/fm-dod-lib.sh will not accept the named head as reachable
 # outside the worker's disposable copy; in no-mistakes mode a forge-reported
 # head is that named head and is already stored on the forge.
@@ -160,12 +163,8 @@ case "$PROVIDER:$MODE" in
   *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
-# bin/fm-pr-merge.sh runs its own ready check before taking the control lock.
-if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
-  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
-  echo "error: $GATE_REASON" >&2
-  exit 1
-fi
+# The named-head gate still runs before metadata publication: a PR whose content
+# exists only in the disposable worker copy must not become a registered owner.
 if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
   && ! GATE_REASON=$(fm_dod_accept_ship_done "${KIND:-ship}" "$MODE" "$WT" "$PROJECT" "$DONE_LINE" "$STATE" "$ID" "$META"); then
   echo "error: $GATE_REASON" >&2
@@ -191,6 +190,22 @@ pr_check_cleanup() {
 }
 trap pr_check_cleanup EXIT
 trap 'exit 1' HUP INT TERM
+
+# Registration is published even when the project-owned ready check fails: a
+# pending CI result can fail it although the forge already reports a real
+# non-draft PR, and pr= with ownership lets the fleet stall sweep wake the lane.
+# A failed check records no pr_head (bin/fm-pr-merge.sh skips its own ready
+# check on a recorded pr_head) and arms no merge poll.
+READY_OK=1
+READY_REASON=
+if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+  && ! READY_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
+  READY_OK=0
+fi
+
+# Build the private poll generation before publication. Preparation is temp-only,
+# so an interrupted or malformed generation leaves the task metadata untouched;
+# the generation is published only after registration and its ready gate pass.
 fm_pr_poll_prepare "$STATE" "$ID" "$PROVIDER" "$URL" "$HOST" "$PROJECT_PATH" "$NUMBER" "$SCRIPT_DIR/fm-pr-poll.sh" \
   || { echo "error: could not prepare PR poll" >&2; exit 1; }
 
@@ -222,7 +237,7 @@ done < "$META"
 printf 'task_owner=%s\nhead_repo=%s\nbase_repo=%s\nbase_ref=%s\nbase_sha=%s\nmerge_target=%s\nstacked=%s\nmerge_owner=%s\n' \
   "$TASK_OWNER" "$HEAD_REPO" "$BASE_REPO" "$BASE_REF" "$BASE_SHA" "$MERGE_TARGET" "$STACKED" "$MERGE_OWNER" >> "$META_TMP" || exit 1
 printf 'pr=%s\n' "$URL" >> "$META_TMP" || exit 1
-[ -z "$PR_HEAD" ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
+[ -z "$PR_HEAD" ] || [ "$READY_OK" != 1 ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
 chmod 0600 "$META_TMP" || exit 1
 fm_pr_private_file_valid "$META_TMP" 600 "$STATE_DEVICE" || exit 1
 fm_pr_metadata_identity_parse "$META_TMP" || exit 1
@@ -239,6 +254,8 @@ fm_pr_metadata_identity_parse "$META" || exit 1
   && [ "$FM_PR_META_NUMBER" = "$NUMBER" ] || exit 1
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
+
+[ "$READY_OK" = 1 ] || { echo "error: $READY_REASON" >&2; exit 1; }
 
 PR_POLL_PUBLISH_LOCK="$STATE/.pr-poll-publish-$ID.lock"
 fm_lock_acquire_wait "$PR_POLL_PUBLISH_LOCK"
