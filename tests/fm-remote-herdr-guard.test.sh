@@ -91,7 +91,7 @@ case "$*" in
     fi
     ;;
   "server --session "*)
-    printf 'pid=%s session=%s\n' "$$" "${3:-}" > "$FM_FAKE_STATE/started"
+    printf 'pid=%s session=%s sid=%s\n' "$$" "${3:-}" "$(ps -o sid= -p "$$" | tr -d ' ')" > "$FM_FAKE_STATE/started"
     ;;
 esac
 exit 0
@@ -101,6 +101,7 @@ cp "$FAKE/lsof" "$TMP_ROOT/lsof.fake"
 
 # hold <marker-env...> -> HOLDER_PID: a real non-platform process (jq blocked
 # on a fifo this test keeps open) whose environment is exactly the markers.
+# It leads its own session like a setsid-started server unless HOLD_LEADER=0.
 hold() {
   local fifo="$TMP_ROOT/holder-$HOLDER_FD.fifo"
   rm -f "$fifo"
@@ -108,7 +109,11 @@ hold() {
   # Open read-write so this never blocks on the reader; the holder sees EOF
   # only when the descriptor closes at exit.
   eval "exec ${HOLDER_FD}<>\"\$fifo\""
-  env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
+  if [ "${HOLD_LEADER:-1}" = 1 ]; then
+    env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
+  else
+    env -i "$@" "$JQ" . "$fifo" &
+  fi
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   HOLDER_FD=$((HOLDER_FD + 1))
@@ -173,6 +178,9 @@ herdr_calls() { cat "$CASE_LOG"; }
 assert_started() { # <msg>
   [ -f "$CASE_STATE/started" ] || fail "$1"
   assert_grep "session=$SESSION" "$CASE_STATE/started" "the server was started for the wrong session"
+  local started_pid
+  started_pid=$(sed -n 's/^pid=\([0-9]*\) .*/\1/p' "$CASE_STATE/started")
+  assert_grep " sid=$started_pid" "$CASE_STATE/started" "the server was not started as its own session leader"
 }
 assert_not_started() { assert_absent "$CASE_STATE/started" "$1"; }
 assert_stop_before_start() {
@@ -215,6 +223,8 @@ hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 LAUNCHD_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 BACKGROUND_PID=$HOLDER_PID
+HOLD_LEADER=0 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
+NONLEADER_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=0
 XPC_ZERO_PID=$HOLDER_PID
 hold FM_REMOTE_JOB_ACTIVE=1
@@ -250,6 +260,19 @@ assert_contains "$GUARD_OUT" "pid $WORKER_PID born in the Aqua login session (wo
   "the guard did not name the worker owner"
 pass "launchd and worker markers require gui-domain launchctl proof"
 
+# --- an Aqua-born owner that is not a session leader is replaced -------------
+
+new_case running
+printf '%s\n' "$NONLEADER_PID" > "$CASE_OWNER"
+load_job gui dev.firstmate.herdr.fm-remote "$NONLEADER_PID"
+guard
+expect_code 0 "$GUARD_RC" "the guard failed to replace an Aqua-born non-leader owner"
+assert_stop_before_start
+assert_started "the guard did not start its own server after the non-leader owner released the socket"
+assert_contains "$GUARD_OUT" "pid $NONLEADER_PID born in the Aqua login session (launchd) that is not a session leader" \
+  "the guard did not name the non-leader owner"
+pass "an Aqua-born server that does not lead its own session is restarted as a session leader"
+
 # --- a foreign owner is stopped, then the guard becomes the server -----------
 
 new_case running
@@ -277,13 +300,8 @@ for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unk
   expect_code 0 "$GUARD_RC" "the guard failed to take over from a ${foreign%% *} owner (pid ${foreign#* })"
   assert_stop_before_start
   assert_started "the guard did not start its own server after the ${foreign%% *} owner released the socket"
-  if [ "${foreign%% *}" = ssh ] && ! printf '%s\n' "$GUARD_OUT" | grep -q "pid ${foreign#* } born outside the Aqua login session (ssh)"; then
-    assert_contains "$GUARD_OUT" "pid ${foreign#* } that is not a session leader" \
-      "the guard did not identify the non-leader foreign owner"
-  else
-    assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
-      "the guard did not name the foreign owner and its birth"
-  fi
+  assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
+    "the guard did not name the foreign owner and its birth"
 done
 pass "background, inherited-XPC, SSH-born, SSH-descended, and unprovable owners are taken over"
 

@@ -273,7 +273,8 @@ It acts on whichever server owns the `fm-remote` socket:
 | Socket owner | Guard action |
 | --- | --- |
 | Nothing | Starts the server through `POSIX::setsid`, then execs it in the foreground under launchd. |
-| An Aqua-born server | Exits 0. |
+| An Aqua-born session-leader server | Exits 0. |
+| An Aqua-born server that is not its own session leader | Stops it and restarts the session as a session leader, so saved Herdr machines accept it. |
 | Any other (foreign) server | Stops the foreign server and takes the session over, closing its panes so the parent firstmate relaunches its mates into the Aqua-born server. |
 
 `KeepAlive={SuccessfulExit=false}` lets that exit 0 rest instead of respawning against a held socket.

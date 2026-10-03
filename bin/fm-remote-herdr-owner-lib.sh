@@ -32,6 +32,11 @@
 #     (own-uid processes only, and macOS hides the environment of Apple
 #     platform binaries such as /bin/sleep even from the same user; a herdr
 #     server is never one), /proc/<pid>/environ elsewhere.
+#   fm_remote_herdr_process_is_session_leader <pid>
+#     Succeeds when getsid(<pid>) == <pid> (Herdr's saved-machine readiness
+#     rule), returns 1 when it is not, and 2 when the session id cannot be
+#     read. Uses Perl getsid(2) on darwin, whose ps has no `sid` keyword, and
+#     /proc/<pid>/stat elsewhere.
 #   fm_remote_herdr_process_ancestry <pid>
 #     Prints "<pid> <command>" for <pid> and each ancestor up to pid 1.
 #   fm_remote_herdr_owner_birth <pid>
@@ -90,7 +95,11 @@ fm_remote_herdr_process_env() { # <pid>
 fm_remote_herdr_process_is_session_leader() { # <pid>
   local pid=$1 sid
   case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  sid=$(ps -o sid= -p "$pid" 2>/dev/null | tr -d '[:space:]') || return 2
+  sid=$(perl -e 'my $p = $ARGV[0] + 0;
+    if ($^O eq "darwin") { my $s = syscall(310, $p); exit 1 if $s < 0; print $s; exit 0 }
+    open my $f, "<", "/proc/$p/stat" or exit 1;
+    my ($rest) = (scalar <$f>) =~ /\)\s+(.*)$/s or exit 1;
+    print((split /\s+/, $rest)[3])' "$pid" 2>/dev/null) || return 2
   case "$sid" in ''|*[!0-9]*) return 2 ;; esac
   [ "$sid" = "$pid" ]
 }

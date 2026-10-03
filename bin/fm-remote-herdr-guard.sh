@@ -68,7 +68,7 @@ status_running() { # <status-json>
 
 start_server() {
   log "starting the herdr server for session $SESSION as its own session leader (pid $$)"
-  command -v perl >/dev/null 2>&1 || { log "perl is required for portable setsid startup"; return 1; }
+  command -v perl >/dev/null 2>&1 || { log "perl is required for portable setsid startup"; exit 1; }
   exec perl -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV or die "exec: $!\n"' \
     "$HERDR_BIN" server --session "$SESSION"
 }
@@ -91,18 +91,13 @@ else
   BIRTH=$(fm_remote_herdr_owner_birth "$OWNER")
 fi
 
-if [ -n "$OWNER" ] && fm_remote_herdr_process_is_session_leader "$OWNER" 2>/dev/null; then
-  LEADER=1
-else
-  LEADER=0
-fi
-if [ "$LEADER" -eq 1 ] && fm_remote_herdr_birth_is_aqua "$BIRTH"; then
-  log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH) and leading its own session; nothing to do"
-  exit 0
-fi
-
-if [ "$LEADER" -eq 0 ] && [ -n "$OWNER" ]; then
-  log "session $SESSION is served by pid $OWNER that is not a session leader; taking the session over"
+if fm_remote_herdr_birth_is_aqua "$BIRTH"; then
+  if fm_remote_herdr_process_is_session_leader "$OWNER"; then LEADER_RC=0; else LEADER_RC=$?; fi
+  if [ "$LEADER_RC" -ne 1 ]; then
+    log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH); nothing to do"
+    exit 0
+  fi
+  log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH) that is not a session leader, so saved machines refuse it; taking the session over"
 else
   log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); its panes cannot reach the login keychain, taking the session over"
 fi
