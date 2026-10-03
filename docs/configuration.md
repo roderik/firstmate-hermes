@@ -2257,7 +2257,7 @@ Copy [`docs/examples/fleet-watch.json`](examples/fleet-watch.json) and replace i
 The configuration contains `repo`, an `authors` allowlist, `required_test_checks`, `cadence_seconds`, and `thresholds` for `budget_seconds`, `renudge_seconds`, and `escalate_seconds`.
 The optional `takeovers` object maps pull-request numbers to lane ids, `remote_lanes` excludes lanes that cannot receive local steering, and `rollout_workflows` lists objects with `name` and optional `branch` fields.
 The optional `merge_method` is `merge`, `squash`, or `rebase`; without it the admin merge uses the first method the repository allows, in the order squash, merge, rebase.
-The optional `steering` object replaces the message sent to the owning lane for `conflict`, `red`, `behind`, `cancelled`, or `threads`.
+The optional `steering` object replaces the message sent to the owning lane for `conflict`, `red`, `behind`, `cancelled`, `threads`, or `ready` (a registered green pull request with no armed merge poll).
 Each template may use `{url}`, `{base}`, `{head}`, `{checks}`, `{cancelled}`, and `{threads}`, and a template that cannot be filled falls back to the neutral built-in wording.
 Name team-specific skills or branch policies in these templates rather than in the shared scripts.
 The author list and repository are required for the pull-request checks, and a missing or malformed file fails closed with a check diagnostic.

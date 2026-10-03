@@ -188,6 +188,18 @@ pr_check_cleanup() {
 trap pr_check_cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
+# Registration is published even when the project-owned ready check fails: a
+# pending CI result can fail it although the forge already reports a real
+# non-draft PR, and pr= with ownership lets the fleet stall sweep wake the lane.
+# A failed check records no pr_head (bin/fm-pr-merge.sh skips its own ready
+# check on a recorded pr_head) and arms no merge poll.
+READY_OK=1
+READY_REASON=
+if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+  && ! READY_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
+  READY_OK=0
+fi
+
 # Build the private poll generation before publication. Preparation is temp-only,
 # so an interrupted or malformed generation leaves the task metadata untouched;
 # the generation is published only after registration and its ready gate pass.
@@ -222,7 +234,7 @@ done < "$META"
 printf 'task_owner=%s\nhead_repo=%s\nbase_repo=%s\nbase_ref=%s\nbase_sha=%s\nmerge_target=%s\nstacked=%s\nmerge_owner=%s\n' \
   "$TASK_OWNER" "$HEAD_REPO" "$BASE_REPO" "$BASE_REF" "$BASE_SHA" "$MERGE_TARGET" "$STACKED" "$MERGE_OWNER" >> "$META_TMP" || exit 1
 printf 'pr=%s\n' "$URL" >> "$META_TMP" || exit 1
-[ -z "$PR_HEAD" ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
+[ -z "$PR_HEAD" ] || [ "$READY_OK" != 1 ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
 chmod 0600 "$META_TMP" || exit 1
 fm_pr_private_file_valid "$META_TMP" 600 "$STATE_DEVICE" || exit 1
 fm_pr_metadata_identity_parse "$META_TMP" || exit 1
@@ -240,16 +252,7 @@ fm_pr_metadata_identity_parse "$META" || exit 1
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
 
-# Registration is deliberately published before the project-owned ready check.
-# A pending CI result can make that check fail even though the forge has already
-# reported a real non-draft PR; retaining pr=, pr_head=, and ownership lets the
-# fleet stall sweep wake the lane while the check is pending. No merge poll is
-# armed until a later registration re-evaluates this gate successfully.
-if [ "${KIND:-ship}" = ship ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
-  && ! GATE_REASON=$(fm_dod_ready_check "$PROJECT" "$WT" "$PR_HEAD" "$NUMBER"); then
-  echo "error: $GATE_REASON" >&2
-  exit 1
-fi
+[ "$READY_OK" = 1 ] || { echo "error: $READY_REASON" >&2; exit 1; }
 
 PR_POLL_PUBLISH_LOCK="$STATE/.pr-poll-publish-$ID.lock"
 fm_lock_acquire_wait "$PR_POLL_PUBLISH_LOCK"

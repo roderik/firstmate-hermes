@@ -769,8 +769,8 @@ SH
     || fail "pending ready check did not retain PR registration"
   grep -qxF 'task_owner=task-a' "$dir/home/state/task-a.meta" \
     || fail "pending ready check did not retain ownership"
-  grep -qxF "pr_head=$head" "$dir/home/state/task-a.meta" \
-    || fail "pending ready check did not retain forge head"
+  ! grep -q '^pr_head=' "$dir/home/state/task-a.meta" \
+    || fail "a failed ready check recorded pr_head, letting fm-pr-merge skip its ready check"
   [ ! -e "$dir/home/state/task-a.check.sh" ] \
     || fail "pending ready check armed a merge poll"
   touch "$dir/wt/ready.ok"
@@ -782,6 +782,8 @@ SH
     || fail "a ready check that later passed did not arm the poll"
   [ -f "$dir/home/state/task-a.check.sh" ] \
     || fail "ready re-evaluation did not arm the merge poll"
+  grep -qxF "pr_head=$head" "$dir/home/state/task-a.meta" \
+    || fail "a passing ready check did not record pr_head"
   pass "PR registration survives a pending ready check and arms after re-evaluation"
 }
 

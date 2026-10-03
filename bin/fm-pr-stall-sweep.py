@@ -2,12 +2,13 @@
 """Keep configured fleet pull requests moving.
 
 Every watcher check cycle:
-  - lists open pull requests by configured authors;
+  - lists open pull requests by configured authors, registered task pr= URLs, and takeovers;
   - maps each PR to its owning lane (meta branch, takeover table, or a recent status mention);
   - classifies the stall (conflict, behind, failing checks, cancelled-only rollup, open threads);
   - steers the owner once per (PR, head, problem) with the exact action and failing job links,
     re-nudges if the same problem is still there after RENUDGE_S;
   - admin-merges PRs the fleet eligibility script accepts;
+  - wakes the owner of a registered green PR that has no armed merge poll;
   - prints a line only for merges, PRs with no live owner, and long stalls.
 The configured budget keeps each sweep bounded so work resumes next cycle.
 """
@@ -31,6 +32,7 @@ STEERING = {
     "behind": "{url} is behind {base}. Bring {base} into the branch, push, and keep watching the pull request.",
     "cancelled": "{url} rollup is red only from cancelled runs ({cancelled}). Re-run each cancelled run once if no sibling run of that workflow is active, then keep watching the pull request.",
     "threads": "{url} has {threads} unresolved review thread(s). Fix or answer each thread, resolve it, push, and keep watching the pull request.",
+    "ready": "{url} is green on head {head} but no merge watch is armed for it. Re-run the local ready check and report the pull request ready again.",
 }
 STEERING_DEFAULTS = dict(STEERING)
 try:
@@ -71,7 +73,7 @@ Q = """query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on Pull
    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}}"""
 
 Q_ONE = """query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){
- number url isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
+ number url state isDraft mergeable mergeStateStatus headRefName baseRefName author{login}
  reviewThreads(first:60){nodes{isResolved}}
  commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{
    ... on CheckRun{name conclusion status detailsUrl} ... on StatusContext{context state targetUrl}}}}}}}}}}"""
@@ -98,18 +100,11 @@ def prs():
     out = []
     authors = cfg.get("authors", []) if "cfg" in globals() else [os.environ.get("FM_FLEET_PR_AUTHORS", "")]
     authors = [a for a in authors if a]
-    registered = [entry for entry in registered_prs() if entry[1] == REPO]
-    if not REPO or (not authors and not registered):
+    numbers = sorted({entry[2] for entry in registered_prs() if entry[1] == REPO} | set(TAKEOVERS))
+    if not REPO or (not authors and not numbers):
         return out
-    queries = [f"repo:{REPO} is:pr is:open author:{a}" for a in authors]
-    # A registered PR must remain visible even when its author is not in the
-    # fleet author allowlist. The broad query is filtered back to configured
-    # authors or exact registered numbers below; it only fills the first page,
-    # while the identity query handles every registered PR explicitly.
-    if registered:
-        queries.append(f"repo:{REPO} is:pr is:open")
     seen = set()
-    for q in queries:
+    for q in [f"repo:{REPO} is:pr is:open author:{a}" for a in authors]:
         rc, o = sh([GH_BIN, "api", "graphql", "-f", f"query={Q}", "-f", f"q={q}"], timeout=12)
         if rc:
             continue
@@ -120,17 +115,17 @@ def prs():
         for n in nodes:
             if not n or n.get("number") in seen:
                 continue
-            if n.get("author", {}).get("login") not in authors and not any(n.get("number") == x[2] for x in registered):
+            if (n.get("author") or {}).get("login") not in authors:
                 continue
             seen.add(n["number"])
             out.append(n)
-    # Search is capped at 100 results. Fetch registered identities directly so
-    # a live owner is never reported ownerless merely because the PR fell past
-    # that cap or was opened by an account outside the configured author list.
-    for url, path, number in registered:
+    # Search is capped at 100 results. Fetch registered and takeover identities
+    # directly so a live owner is never reported ownerless merely because the PR
+    # fell past that cap or was opened by an account outside the author list.
+    owner, name = REPO.split("/", 1) if "/" in REPO else (REPO, "")
+    for number in numbers:
         if number in seen:
             continue
-        owner, name = path.split("/", 1)
         rc, raw = sh([GH_BIN, "api", "graphql", "-f", f"query={Q_ONE}",
                       "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}"], timeout=12)
         if rc:
@@ -139,7 +134,7 @@ def prs():
             node = json.loads(raw)["data"]["repository"]["pullRequest"]
         except (KeyError, TypeError, json.JSONDecodeError):
             continue
-        if node and not node.get("isDraft"):
+        if node and node.get("state") == "OPEN" and not node.get("isDraft"):
             seen.add(number)
             out.append(node)
     return out
@@ -172,12 +167,12 @@ def owner_of(pr, metas):
     # A canonical pr= is authoritative for a takeover or a stacked lane whose
     # branch moved after the PR opened.
     for tid, record in metas.items():
-        if record.get("pr") == url:
+        if record.get("pr") == url and tid not in REMOTE:
             return tid
     # Branch ownership covers stacked lanes and PRs whose metadata was recorded
     # before the forge returned the canonical URL.
     for tid, record in metas.items():
-        if record.get("branch") and record["branch"] == pr.get("headRefName"):
+        if record.get("branch") and record["branch"] == pr.get("headRefName") and tid not in REMOTE:
             return tid
     best = None
     for tid in metas:
@@ -234,7 +229,7 @@ def classify(pr):
         return head, "running", None
     if pr["isDraft"]:
         return head, "draft-green", None
-    return head, "green", None
+    return head, "green", steer("ready")
 
 
 def main():
@@ -260,8 +255,13 @@ def main():
                 rc, o = sh(["bash", os.path.join(CODE_ROOT, "bin", "fm-pr-fleet-admin-merge.sh"), pr["url"]], timeout=15)
                 if "merged:" in o:
                     lines.append(f"pr-stall: merged {pr['url']}")
-            seen[key] = rec
-            continue
+                    seen[key] = rec
+                    continue
+            own = owner_of(pr, metas)
+            # A registration whose ready check failed while CI was pending has
+            # no merge watch; once green, wake its owner to report ready again.
+            if not own or metas[own].get("pr") != pr["url"] or os.path.exists(f"{STATE}/{own}.check.sh"):
+                action = None
         if action is None:
             seen[key] = rec
             continue
@@ -272,9 +272,9 @@ def main():
                 rec["escalated"] = now
             seen[key] = rec
             continue
-        # fm-send owns local and remote durable inbox delivery. Keep remote
-        # lanes in the same steer path so every registered PR reaches its live
-        # owner instead of being silently skipped.
+        if own in REMOTE:
+            seen[key] = rec
+            continue
         if not rec["steered"] or now - rec["steered"] > RENUDGE_S:
             msg = ("[pr-stall sweep] " if not rec["steered"] else "[pr-stall sweep, still stalled] ") + action
             rc, _ = sh([os.path.join(CODE_ROOT, "bin/fm-send.sh"), own, msg], timeout=8)
