@@ -54,6 +54,20 @@ context_keeps_watcher_down_alarm() {
   pass "supervision context keeps the drain's watcher-down diagnostics"
 }
 
+context_presents_every_row_it_acknowledges() {
+  local dir out i shown
+  dir=$(make_case backlog)
+  for i in $(seq 1 300); do
+    append_wake "$dir/state" check "key-$i" "backlog row $i $(printf 'x%.0s' $(seq 1 100))"
+  done
+  out="$dir/context.out"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >"$out" || fail "context failed"
+  grep -F 'WAKE_ACK_REQUIRED:' "$out" >/dev/null || fail "context omitted the acknowledgement command"
+  shown=$(grep -cE 'backlog row [0-9]+ ' "$out")
+  [ "$shown" -eq 300 ] || fail "context acknowledges all 300 rows but presented only $shown"
+  pass "supervision context presents every wake row its acknowledgement covers"
+}
+
 context_rejects_arguments() {
   local dir arg
   dir=$(make_case args)
@@ -71,4 +85,5 @@ context_rejects_arguments() {
 context_prints_wake_and_acknowledgement
 context_drains_on_every_invocation
 context_keeps_watcher_down_alarm
+context_presents_every_row_it_acknowledges
 context_rejects_arguments

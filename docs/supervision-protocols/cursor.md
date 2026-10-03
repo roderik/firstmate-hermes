@@ -1,7 +1,7 @@
 Mode: Cursor stop-hook-owned park.
 
 When this session owns supervision and away mode is not active:
-1. Run `bin/fm-supervision-context.sh` once and keep its bounded snapshot.
+1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
    After handling the snapshot's wake rows, event paths, open decisions, unread status, branch outcomes, and divergence, run its exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
 2. Routine watcher arm and re-arm are owned by the `stop` hook (`bin/fm-turnend-guard-cursor.sh`), never by you.
    Cursor runs that hook synchronously and awaits it, so every turn end while supervision is needed parks the turn boundary open on one home-scoped watcher cycle, with no model command and no model tokens spent while parked.

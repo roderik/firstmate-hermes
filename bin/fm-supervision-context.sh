@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Present one bounded supervision context for a wake.
+# Present one labeled supervision context for a wake.
 #
 # This is a presentation helper only. Every invocation runs fm-wake-drain.sh
-# exactly once, bounds and labels its output, and never acknowledges or makes a
+# exactly once, labels its output, and never acknowledges or makes a
 # semantic decision.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CAP=32768
 
 case "${1:-}" in
   '') ;;
@@ -22,11 +21,11 @@ trap 'rm -f -- "$OUT_TMP" "$ERR_TMP"' EXIT
 "$SCRIPT_DIR/fm-wake-drain.sh" >"$OUT_TMP" 2>"$ERR_TMP"
 DRAIN_RC=$?
 
-# Keep complete lines and cap the payload at a predictable byte bound. The raw
-# drain already owns semantic section names and exact commands; this layer only
-# labels and bounds them for callers. Drain stderr carries the acknowledgement
-# and the guard's watcher-down and worktree-tangle alarms, so it leads the
-# payload where the cap cannot cut it off.
+# The raw drain already owns semantic section names and exact commands; this
+# layer only labels them. The output is never truncated: the acknowledgement
+# covers every drained wake row, so every row must be presented. Drain stderr
+# carries the acknowledgement and the guard's watcher-down and worktree-tangle
+# alarms, so it leads the payload.
 {
   printf 'drain-exit: %s\n' "$DRAIN_RC"
   printf 'diagnostics and acknowledgement:\n'
@@ -35,5 +34,5 @@ DRAIN_RC=$?
   cat "$OUT_TMP"
   printf 'processing commands:\n'
   grep -hE 'mark-processed' "$OUT_TMP" 2>/dev/null || true
-} | awk -v cap="$CAP" 'BEGIN { bytes=0 } { line=$0 ORS; if (bytes + length(line) <= cap) { printf "%s", line; bytes += length(line) } else if (!truncated++) { printf "... snapshot payload truncated at %d bytes ...\n", cap } }'
+}
 exit "$DRAIN_RC"

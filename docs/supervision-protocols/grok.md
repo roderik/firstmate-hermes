@@ -1,7 +1,7 @@
 Mode: Grok background-notify supervision.
 
 When this session owns supervision and away mode is not active:
-1. Run `bin/fm-supervision-context.sh` once and keep its bounded snapshot.
+1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
    After handling the snapshot's wake rows, event paths, open decisions, unread status, branch outcomes, and divergence, run its exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
 2. Source `__FM_X_MODE_ENV__` first when Relay is active.
 3. First cycle: arm with Grok's tracked background tool, as its own call:
