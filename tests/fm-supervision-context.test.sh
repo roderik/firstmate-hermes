@@ -40,6 +40,20 @@ context_drains_on_every_invocation() {
   pass "supervision context reruns the drain even when the wake queue is unchanged"
 }
 
+context_keeps_watcher_down_alarm() {
+  local dir out
+  dir=$(make_case watcher-down)
+  printf 'window=test:fm-x\nkind=ship\n' > "$dir/state/x.meta"
+  out="$dir/context.out"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >"$out" 2>/dev/null || fail "context failed: $(cat "$out")"
+  grep -F 'WATCHER DOWN - SUPERVISION IS OFF' "$out" >/dev/null \
+    || fail "context dropped the watcher-down banner: $(cat "$out")"
+  FM_STATE_OVERRIDE="$dir/state" "$CONTEXT" >"$out" 2>/dev/null || fail "repeat context failed: $(cat "$out")"
+  grep -F 'watcher still down' "$out" >/dev/null \
+    || fail "context dropped the same-episode watcher-down reminder: $(cat "$out")"
+  pass "supervision context keeps the drain's watcher-down diagnostics"
+}
+
 context_rejects_arguments() {
   local dir arg
   dir=$(make_case args)
@@ -56,4 +70,5 @@ context_rejects_arguments() {
 
 context_prints_wake_and_acknowledgement
 context_drains_on_every_invocation
+context_keeps_watcher_down_alarm
 context_rejects_arguments

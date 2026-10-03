@@ -24,12 +24,16 @@ DRAIN_RC=$?
 
 # Keep complete lines and cap the payload at a predictable byte bound. The raw
 # drain already owns semantic section names and exact commands; this layer only
-# labels and bounds them for callers.
+# labels and bounds them for callers. Drain stderr carries the acknowledgement
+# and the guard's watcher-down and worktree-tangle alarms, so it leads the
+# payload where the cap cannot cut it off.
 {
+  printf 'drain-exit: %s\n' "$DRAIN_RC"
+  printf 'diagnostics and acknowledgement:\n'
+  cat "$ERR_TMP"
   printf 'wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:\n'
   cat "$OUT_TMP"
-  printf 'acknowledgement and processing commands:\n'
-  grep -hE 'WAKE_ACK_REQUIRED|mark-processed' "$OUT_TMP" "$ERR_TMP" 2>/dev/null || true
-  printf 'drain-exit: %s\n' "$DRAIN_RC"
+  printf 'processing commands:\n'
+  grep -hE 'mark-processed' "$OUT_TMP" 2>/dev/null || true
 } | awk -v cap="$CAP" 'BEGIN { bytes=0 } { line=$0 ORS; if (bytes + length(line) <= cap) { printf "%s", line; bytes += length(line) } else if (!truncated++) { printf "... snapshot payload truncated at %d bytes ...\n", cap } }'
 exit "$DRAIN_RC"
