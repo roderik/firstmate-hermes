@@ -192,13 +192,15 @@ herdr_server_birth() {
 }
 
 # On darwin the session is ready only when its server was born in the Aqua
-# login session; elsewhere any running server is.
+# login session and is not proven to lack session leadership, which Herdr
+# requires for saved machines; elsewhere any running server is.
 herdr_server_aqua_owned() {
   local birth
   herdr_server_running || return 1
   [ "$PLATFORM" = darwin ] || return 0
   birth=$(herdr_server_birth)
-  fm_remote_herdr_birth_is_aqua "${birth%% *}"
+  fm_remote_herdr_birth_is_aqua "${birth%% *}" || return 1
+  fm_remote_herdr_process_is_session_leader "${birth#* }" || [ "$?" -ne 1 ]
 }
 
 launch_agent_is_aqua() {
@@ -672,7 +674,14 @@ check_herdr_server() {
     birth=$(herdr_server_birth)
     case "$birth" in
       launchd\ *|worker\ *)
-        record herdr-server "ok: session $HERDR_SESSION_NAME is running in the Aqua login session (pid ${birth#* }, ${birth%% *})"
+        if fm_remote_herdr_process_is_session_leader "${birth#* }"; then
+          record herdr-server "ok: session $HERDR_SESSION_NAME is running in the Aqua login session (pid ${birth#* }, ${birth%% *}) and is a session leader"
+        elif [ "$?" -eq 1 ]; then
+          record herdr-server "fixable: session $HERDR_SESSION_NAME is served by pid ${birth#* } but that process is not a session leader, so saved machines refuse it" \
+            "rerun this command with --fix so the launch agent restarts the server as its own session leader"
+        else
+          record herdr-server "ok: session $HERDR_SESSION_NAME is running in the Aqua login session (pid ${birth#* }, ${birth%% *}); whether it is a session leader cannot be read"
+        fi
         ;;
       nolsof)
         record herdr-server "human: session $HERDR_SESSION_NAME is running but lsof does not resolve, so its server's birth cannot be proven" \

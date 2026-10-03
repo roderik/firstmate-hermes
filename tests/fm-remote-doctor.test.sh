@@ -40,11 +40,18 @@ BASE_PATH="$TOOLS:/usr/bin:/bin:/usr/sbin:/sbin"
 # Real socket-owner holders for the Darwin birth check: jq blocked on a fifo
 # this test keeps open, with exactly the marker environment each birth needs.
 JQ=$(command -v jq)
+PERL=$(command -v perl)
 HOLDER_FD=5
+# Holders lead their own session like a setsid-started server unless
+# HOLD_LEADER=0 models a server started in its parent's session.
 hold() { # <marker-env...> -> HOLDER_PID
   local fifo="$TMP_ROOT/holder-$HOLDER_FD.fifo"
   mkfifo "$fifo"
-  env -i "$@" "$JQ" . "$fifo" &
+  if [ "${HOLD_LEADER:-1}" = 1 ]; then
+    env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
+  else
+    env -i "$@" "$JQ" . "$fifo" &
+  fi
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   eval "exec ${HOLDER_FD}>\"\$fifo\""
@@ -54,6 +61,8 @@ hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 AQUA_HOLDER_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 BACKGROUND_HOLDER_PID=$HOLDER_PID
+HOLD_LEADER=0 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
+NONLEADER_HOLDER_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=0
 XPC_ZERO_HOLDER_PID=$HOLDER_PID
 hold FM_REMOTE_JOB_ACTIVE=1
@@ -616,6 +625,18 @@ doctor --fix
 expect_code 0 "$DOCTOR_RC" "the Aqua-owner fixture could not be initialized"
 assert_contains "$DOCTOR_OUT" "check herdr-server=ok: session fm-remote is running in the Aqua login session (pid $AQUA_HOLDER_PID, launchd)" \
   "a launchd-born owner was not reported with its pid and birth"
+
+printf '%s\n' "$NONLEADER_HOLDER_PID" > "$CASE_STATE/socket-owner"
+: > "$CASE_LAUNCHCTL_LOG"
+doctor
+expect_code 1 "$DOCTOR_RC" "an Aqua-born server that is not a session leader was reported ready"
+assert_contains "$DOCTOR_OUT" "check herdr-server=fixable: session fm-remote is served by pid $NONLEADER_HOLDER_PID but that process is not a session leader, so saved machines refuse it" \
+  "an Aqua-born non-leader owner was not tagged fixable"
+doctor --fix
+expect_code 0 "$DOCTOR_RC" "--fix did not restart the non-leader server through the launch agent"
+assert_grep "kickstart -k gui/$(id -u)/$LABEL" "$CASE_LAUNCHCTL_LOG" "the non-leader restart did not go through launchd"
+assert_contains "$DOCTOR_OUT" "check herdr-server=ok: session fm-remote is running in the Aqua login session (pid $AQUA_HOLDER_PID, launchd) and is a session leader" \
+  "the restarted session-leader server was not confirmed"
 
 printf '%s\n' "$BACKGROUND_HOLDER_PID" > "$CASE_STATE/socket-owner"
 printf 'background job\n' > "$CASE_STATE/user-loaded-$LABEL"

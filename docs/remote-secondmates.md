@@ -259,6 +259,8 @@ It resolves that shell in this order, so the server inherits the account's own e
 3. `/bin/sh`.
 
 The `gui/<uid>` domain, not the login shell, is what gives that server and every pane it spawns the Aqua audit session and login-keychain access.
+The foreground server must also be its own session leader, which Herdr requires for saved-machine attachments.
+When the launch-agent process already leads its session, the guard execs Herdr directly so the server keeps the job pid; otherwise it calls Perl `POSIX::setsid` before execing Herdr, and forks a session-leader child that it waits on when `setsid` refuses a process-group leader.
 A server born in any other session cannot read the login keychain.
 Every claude pane under such a server falls back to a stale plaintext credentials file and reports "Login expired".
 
@@ -271,8 +273,9 @@ It acts on whichever server owns the `fm-remote` socket:
 
 | Socket owner | Guard action |
 | --- | --- |
-| Nothing | Execs the server in the foreground under launchd. |
-| An Aqua-born server | Exits 0. |
+| Nothing | Starts the server as its own session leader in the foreground under launchd. |
+| An Aqua-born session-leader server | Exits 0. |
+| An Aqua-born server that is not its own session leader | Stops it and restarts the session as a session leader, so saved Herdr machines accept it. |
 | Any other (foreign) server | Stops the foreign server and takes the session over, closing its panes so the parent firstmate relaunches its mates into the Aqua-born server. |
 
 `KeepAlive={SuccessfulExit=false}` lets that exit 0 rest instead of respawning against a held socket.

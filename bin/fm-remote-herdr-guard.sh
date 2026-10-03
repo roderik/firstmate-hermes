@@ -12,19 +12,28 @@
 # the login shell, is what gives this process and every server it execs the
 # Aqua audit session and login-keychain access; the login shell only gives the
 # server the account's own environment.
-# `herdr server` stays in the foreground under launchd, as verified in
-# docs/verification/runtime-backends.md under "fm-remote server birth and login-keychain access", so the final exec provides the complete supervision lifecycle.
+# Herdr requires getsid(0) == getpid() for saved-machine readiness, so the
+# server must lead its own session. When the job process already leads its
+# session (launchd's usual spawn), the guard execs herdr directly and the
+# server keeps the launchd job pid. Otherwise a small Perl wrapper calls
+# POSIX::setsid and execs herdr; if setsid(2) refuses because the process
+# leads a process group, the wrapper forks a child that becomes the session
+# leader, forwards termination signals to it, and exits with its status. In
+# every case the server stays foreground-supervised and is not daemonized.
 #
 # Decision, made once per launch (exit codes matter under SuccessfulExit=false:
 # 0 tells launchd the job is done until something restarts it, non-zero asks
 # for a retry after the throttle interval):
-#   no server owns the session socket  -> exec `herdr server --session <s>`
-#                                          (foreground, launchd-supervised)
+#   no server owns the session socket  -> start `herdr server --session <s>`
+#                                          as a session leader (foreground,
+#                                          launchd-supervised)
 #   the owner was born in the Aqua session (launchd or the Aqua remote-job
-#   worker)                            -> exit 0, leave it alone
-#   the owner was born anywhere else (an SSH remote attach, a shell over
+#   worker) and is not proven to lack session leadership
+#                                      -> exit 0, leave it alone
+#   the owner was born in the Aqua session but is proven not to lead its
+#   own session, or was born anywhere else (an SSH remote attach, a shell over
 #   ssh/mosh, or a birth it cannot prove) -> `herdr server stop`, wait until the
-#                                          socket is released, then exec
+#                                          socket is released, then start
 #                                          `herdr server --session <s>` at once
 #                                          so the socket is rebound before a
 #                                          reconnecting SSH attach can start
@@ -65,8 +74,19 @@ status_running() { # <status-json>
 }
 
 start_server() {
-  log "starting the herdr server for session $SESSION inside this launch agent (pid $$)"
-  exec "$HERDR_BIN" server --session "$SESSION"
+  log "starting the herdr server for session $SESSION as its own session leader (pid $$)"
+  command -v perl >/dev/null 2>&1 || { log "perl is required for portable setsid startup"; exit 1; }
+  if fm_remote_herdr_process_is_session_leader "$$"; then
+    exec "$HERDR_BIN" server --session "$SESSION"
+  fi
+  exec perl -MPOSIX -e '
+    if (POSIX::setsid() == $$) { exec @ARGV or die "exec: $!\n" }
+    defined(my $child = fork) or die "fork: $!\n";
+    if (!$child) { POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV or die "exec: $!\n" }
+    $SIG{$_} = sub { kill $_[0], $child } for qw(TERM INT HUP QUIT);
+    1 while waitpid($child, 0) == -1 && $!{EINTR};
+    exit(($? & 127) ? 128 + ($? & 127) : $? >> 8)' \
+    "$HERDR_BIN" server --session "$SESSION"
 }
 
 STATUS=$(herdr_status)
@@ -88,11 +108,15 @@ else
 fi
 
 if fm_remote_herdr_birth_is_aqua "$BIRTH"; then
-  log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH); nothing to do"
-  exit 0
+  if fm_remote_herdr_process_is_session_leader "$OWNER"; then LEADER_RC=0; else LEADER_RC=$?; fi
+  if [ "$LEADER_RC" -ne 1 ]; then
+    log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH); nothing to do"
+    exit 0
+  fi
+  log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH) that is not a session leader, so saved machines refuse it; taking the session over"
+else
+  log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); its panes cannot reach the login keychain, taking the session over"
 fi
-
-log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); its panes cannot reach the login keychain, taking the session over"
 HERDR_SESSION="$SESSION" "$HERDR_BIN" server stop --session "$SESSION" >/dev/null 2>&1 \
   || log "herdr server stop for session $SESSION did not succeed; waiting for the socket anyway"
 i=0

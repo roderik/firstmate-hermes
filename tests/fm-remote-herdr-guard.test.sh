@@ -26,13 +26,14 @@ trap 'if [ "${#HOLDER_PIDS[@]}" -gt 0 ]; then kill "${HOLDER_PIDS[@]}" 2>/dev/nu
 
 GUARD="$ROOT/bin/fm-remote-herdr-guard.sh"
 JQ=$(command -v jq)
+PERL=$(command -v perl)
 SESSION=fm-remote
 
 # The guard must see only the fixture and the system tools it really needs,
 # so a case can also present a host with NO lsof.
 TOOLS="$TMP_ROOT/tools"
 mkdir -p "$TOOLS"
-for tool in ps awk sed grep tr dirname basename sleep cat cp rm env bash sh id head; do
+for tool in ps awk sed grep tr dirname basename sleep cat cp rm env bash sh id head perl; do
   real=$(command -v "$tool") || fail "test host lacks $tool"
   ln -sf "$real" "$TOOLS/$tool"
 done
@@ -90,7 +91,8 @@ case "$*" in
     fi
     ;;
   "server --session "*)
-    printf 'pid=%s session=%s\n' "$$" "${3:-}" > "$FM_FAKE_STATE/started"
+    printf 'pid=%s session=%s sid=%s parent=%s\n' "$$" "${3:-}" "$(ps -o sid= -p "$$" | tr -d ' ')" "$(ps -o comm= -p "$PPID" | tr -d ' ')" > "$FM_FAKE_STATE/started"
+    [ ! -f "$FM_FAKE_STATE/server-exit" ] || exit "$(cat "$FM_FAKE_STATE/server-exit")"
     ;;
 esac
 exit 0
@@ -100,6 +102,7 @@ cp "$FAKE/lsof" "$TMP_ROOT/lsof.fake"
 
 # hold <marker-env...> -> HOLDER_PID: a real non-platform process (jq blocked
 # on a fifo this test keeps open) whose environment is exactly the markers.
+# It leads its own session like a setsid-started server unless HOLD_LEADER=0.
 hold() {
   local fifo="$TMP_ROOT/holder-$HOLDER_FD.fifo"
   rm -f "$fifo"
@@ -107,7 +110,11 @@ hold() {
   # Open read-write so this never blocks on the reader; the holder sees EOF
   # only when the descriptor closes at exit.
   eval "exec ${HOLDER_FD}<>\"\$fifo\""
-  env -i "$@" "$JQ" . "$fifo" &
+  if [ "${HOLD_LEADER:-1}" = 1 ]; then
+    env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
+  else
+    env -i "$@" "$JQ" . "$fifo" &
+  fi
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   HOLDER_FD=$((HOLDER_FD + 1))
@@ -172,6 +179,9 @@ herdr_calls() { cat "$CASE_LOG"; }
 assert_started() { # <msg>
   [ -f "$CASE_STATE/started" ] || fail "$1"
   assert_grep "session=$SESSION" "$CASE_STATE/started" "the server was started for the wrong session"
+  local started_pid
+  started_pid=$(sed -n 's/^pid=\([0-9]*\) .*/\1/p' "$CASE_STATE/started")
+  assert_grep " sid=$started_pid " "$CASE_STATE/started" "the server was not started as its own session leader"
 }
 assert_not_started() { assert_absent "$CASE_STATE/started" "$1"; }
 assert_stop_before_start() {
@@ -208,12 +218,32 @@ assert_not_contains "$(herdr_calls)" 'server stop' "the guard stopped something 
 assert_contains "$GUARD_OUT" "no server owns session $SESSION" "the guard did not report the empty session"
 pass "an empty session is started inside the launch agent"
 
+# launchd may hand the guard a pid that already leads its process group or
+# session, where setsid(2) refuses; the server must still lead its own session,
+# keep the job pid when the guard already leads its session, and the job must
+# exit with the server's status.
+for leader in "process-group POSIX::setpgid(0, 0)" "session POSIX::setsid()"; do
+  new_case stopped
+  printf '7\n' > "$CASE_STATE/server-exit"
+  guard "$PERL" -MPOSIX -e "${leader#* } or die \"\$!\\n\"; exec @ARGV or die"
+  expect_code 7 "$GUARD_RC" "the guard started as a ${leader%% *} leader did not exit with the server's status"
+  assert_started "the guard started as a ${leader%% *} leader did not start the server"
+  if [ "${leader%% *}" = session ]; then
+    assert_no_grep " parent=perl" "$CASE_STATE/started" "a guard that already leads its session forked the server off the job pid"
+  else
+    assert_grep " parent=perl" "$CASE_STATE/started" "a process-group-leader guard did not fork a session-leader server"
+  fi
+done
+pass "a guard that already leads its process group or session still starts a session-leader server"
+
 # --- an Aqua-born owner is left alone ----------------------------------------
 
 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 LAUNCHD_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
 BACKGROUND_PID=$HOLDER_PID
+HOLD_LEADER=0 hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote
+NONLEADER_PID=$HOLDER_PID
 hold XPC_SERVICE_NAME=0
 XPC_ZERO_PID=$HOLDER_PID
 hold FM_REMOTE_JOB_ACTIVE=1
@@ -248,6 +278,19 @@ assert_not_contains "$(herdr_calls)" 'server stop' "the guard stopped a gui-doma
 assert_contains "$GUARD_OUT" "pid $WORKER_PID born in the Aqua login session (worker)" \
   "the guard did not name the worker owner"
 pass "launchd and worker markers require gui-domain launchctl proof"
+
+# --- an Aqua-born owner that is not a session leader is replaced -------------
+
+new_case running
+printf '%s\n' "$NONLEADER_PID" > "$CASE_OWNER"
+load_job gui dev.firstmate.herdr.fm-remote "$NONLEADER_PID"
+guard
+expect_code 0 "$GUARD_RC" "the guard failed to replace an Aqua-born non-leader owner"
+assert_stop_before_start
+assert_started "the guard did not start its own server after the non-leader owner released the socket"
+assert_contains "$GUARD_OUT" "pid $NONLEADER_PID born in the Aqua login session (launchd) that is not a session leader" \
+  "the guard did not name the non-leader owner"
+pass "an Aqua-born server that does not lead its own session is restarted as a session leader"
 
 # --- a foreign owner is stopped, then the guard becomes the server -----------
 
