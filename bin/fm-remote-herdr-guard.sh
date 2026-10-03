@@ -28,8 +28,10 @@
 #                                          as a session leader (foreground,
 #                                          launchd-supervised)
 #   the owner was born in the Aqua session (launchd or the Aqua remote-job
-#   worker)                            -> exit 0, leave it alone
-#   the owner was born anywhere else (an SSH remote attach, a shell over
+#   worker) and is not proven to lack session leadership
+#                                      -> exit 0, leave it alone
+#   the owner was born in the Aqua session but is proven not to lead its
+#   own session, or was born anywhere else (an SSH remote attach, a shell over
 #   ssh/mosh, or a birth it cannot prove) -> `herdr server stop`, wait until the
 #                                          socket is released, then start
 #                                          `herdr server --session <s>` at once
