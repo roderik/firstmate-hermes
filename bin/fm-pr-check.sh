@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Record a PR-ready task: store one validated canonical pr=<url> and the forge's
 # exact pr_head=<sha> when available, then atomically arm a static merge poll.
+# A failed project ready check still records pr= and ownership but no pr_head=,
+# arms no poll, and exits non-zero; the fleet stall sweep wakes the owner to
+# re-run this once the pull request is green.
 # Refuses when bin/fm-dod-lib.sh will not accept the named head as reachable
 # outside the worker's disposable copy; in no-mistakes mode a forge-reported
 # head is that named head and is already stored on the forge.
