@@ -91,7 +91,7 @@ case "$*" in
     fi
     ;;
   "server --session "*)
-    printf 'pid=%s session=%s sid=%s\n' "$$" "${3:-}" "$(ps -o sid= -p "$$" | tr -d ' ')" > "$FM_FAKE_STATE/started"
+    printf 'pid=%s session=%s sid=%s parent=%s\n' "$$" "${3:-}" "$(ps -o sid= -p "$$" | tr -d ' ')" "$(ps -o comm= -p "$PPID" | tr -d ' ')" > "$FM_FAKE_STATE/started"
     [ ! -f "$FM_FAKE_STATE/server-exit" ] || exit "$(cat "$FM_FAKE_STATE/server-exit")"
     ;;
 esac
@@ -181,7 +181,7 @@ assert_started() { # <msg>
   assert_grep "session=$SESSION" "$CASE_STATE/started" "the server was started for the wrong session"
   local started_pid
   started_pid=$(sed -n 's/^pid=\([0-9]*\) .*/\1/p' "$CASE_STATE/started")
-  assert_grep " sid=$started_pid" "$CASE_STATE/started" "the server was not started as its own session leader"
+  assert_grep " sid=$started_pid " "$CASE_STATE/started" "the server was not started as its own session leader"
 }
 assert_not_started() { assert_absent "$CASE_STATE/started" "$1"; }
 assert_stop_before_start() {
@@ -219,14 +219,20 @@ assert_contains "$GUARD_OUT" "no server owns session $SESSION" "the guard did no
 pass "an empty session is started inside the launch agent"
 
 # launchd may hand the guard a pid that already leads its process group or
-# session, where setsid(2) refuses; the server must still lead its own session
-# and the job must exit with the server's status.
+# session, where setsid(2) refuses; the server must still lead its own session,
+# keep the job pid when the guard already leads its session, and the job must
+# exit with the server's status.
 for leader in "process-group POSIX::setpgid(0, 0)" "session POSIX::setsid()"; do
   new_case stopped
   printf '7\n' > "$CASE_STATE/server-exit"
   guard "$PERL" -MPOSIX -e "${leader#* } or die \"\$!\\n\"; exec @ARGV or die"
   expect_code 7 "$GUARD_RC" "the guard started as a ${leader%% *} leader did not exit with the server's status"
   assert_started "the guard started as a ${leader%% *} leader did not start the server"
+  if [ "${leader%% *}" = session ]; then
+    assert_no_grep " parent=perl" "$CASE_STATE/started" "a guard that already leads its session forked the server off the job pid"
+  else
+    assert_grep " parent=perl" "$CASE_STATE/started" "a process-group-leader guard did not fork a session-leader server"
+  fi
 done
 pass "a guard that already leads its process group or session still starts a session-leader server"
 

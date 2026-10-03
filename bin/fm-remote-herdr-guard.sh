@@ -12,23 +12,26 @@
 # the login shell, is what gives this process and every server it execs the
 # Aqua audit session and login-keychain access; the login shell only gives the
 # server the account's own environment.
-# The guard starts the server through a small Perl POSIX::setsid wrapper before
-# execing herdr, because Herdr requires getsid(0) == getpid() for saved-machine
-# readiness. When the job process already leads a process group or session,
-# setsid(2) refuses it, so the wrapper forks a child that becomes the session
-# leader, forwards termination signals to it, and exits with its status. Either
-# way the server stays foreground-supervised by launchd and is not daemonized.
+# Herdr requires getsid(0) == getpid() for saved-machine readiness, so the
+# server must lead its own session. When the job process already leads its
+# session (launchd's usual spawn), the guard execs herdr directly and the
+# server keeps the launchd job pid. Otherwise a small Perl wrapper calls
+# POSIX::setsid and execs herdr; if setsid(2) refuses because the process
+# leads a process group, the wrapper forks a child that becomes the session
+# leader, forwards termination signals to it, and exits with its status. In
+# every case the server stays foreground-supervised and is not daemonized.
 #
 # Decision, made once per launch (exit codes matter under SuccessfulExit=false:
 # 0 tells launchd the job is done until something restarts it, non-zero asks
 # for a retry after the throttle interval):
-#   no server owns the session socket  -> exec `herdr server --session <s>`
-#                                          (foreground, launchd-supervised)
+#   no server owns the session socket  -> start `herdr server --session <s>`
+#                                          as a session leader (foreground,
+#                                          launchd-supervised)
 #   the owner was born in the Aqua session (launchd or the Aqua remote-job
 #   worker)                            -> exit 0, leave it alone
 #   the owner was born anywhere else (an SSH remote attach, a shell over
 #   ssh/mosh, or a birth it cannot prove) -> `herdr server stop`, wait until the
-#                                          socket is released, then exec
+#                                          socket is released, then start
 #                                          `herdr server --session <s>` at once
 #                                          so the socket is rebound before a
 #                                          reconnecting SSH attach can start
@@ -71,6 +74,9 @@ status_running() { # <status-json>
 start_server() {
   log "starting the herdr server for session $SESSION as its own session leader (pid $$)"
   command -v perl >/dev/null 2>&1 || { log "perl is required for portable setsid startup"; exit 1; }
+  if fm_remote_herdr_process_is_session_leader "$$"; then
+    exec "$HERDR_BIN" server --session "$SESSION"
+  fi
   exec perl -MPOSIX -e '
     if (POSIX::setsid() == $$) { exec @ARGV or die "exec: $!\n" }
     defined(my $child = fork) or die "fork: $!\n";
