@@ -87,6 +87,14 @@ fm_remote_herdr_process_env() { # <pid>
   ps -Eww -o command= -p "$pid" 2>/dev/null | tr ' ' '\n' | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' || true
 }
 
+fm_remote_herdr_process_is_session_leader() { # <pid>
+  local pid=$1 sid
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  sid=$(ps -o sid= -p "$pid" 2>/dev/null | tr -d '[:space:]') || return 2
+  case "$sid" in ''|*[!0-9]*) return 2 ;; esac
+  [ "$sid" = "$pid" ]
+}
+
 fm_remote_herdr_process_ancestry() { # <pid>
   local pid=$1 depth=0 line ppid
   while [ "$depth" -lt 64 ]; do

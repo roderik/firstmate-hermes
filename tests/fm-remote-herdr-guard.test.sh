@@ -26,13 +26,14 @@ trap 'if [ "${#HOLDER_PIDS[@]}" -gt 0 ]; then kill "${HOLDER_PIDS[@]}" 2>/dev/nu
 
 GUARD="$ROOT/bin/fm-remote-herdr-guard.sh"
 JQ=$(command -v jq)
+PERL=$(command -v perl)
 SESSION=fm-remote
 
 # The guard must see only the fixture and the system tools it really needs,
 # so a case can also present a host with NO lsof.
 TOOLS="$TMP_ROOT/tools"
 mkdir -p "$TOOLS"
-for tool in ps awk sed grep tr dirname basename sleep cat cp rm env bash sh id head; do
+for tool in ps awk sed grep tr dirname basename sleep cat cp rm env bash sh id head perl; do
   real=$(command -v "$tool") || fail "test host lacks $tool"
   ln -sf "$real" "$TOOLS/$tool"
 done
@@ -107,7 +108,7 @@ hold() {
   # Open read-write so this never blocks on the reader; the holder sees EOF
   # only when the descriptor closes at exit.
   eval "exec ${HOLDER_FD}<>\"\$fifo\""
-  env -i "$@" "$JQ" . "$fifo" &
+  env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   HOLDER_FD=$((HOLDER_FD + 1))
@@ -276,8 +277,13 @@ for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unk
   expect_code 0 "$GUARD_RC" "the guard failed to take over from a ${foreign%% *} owner (pid ${foreign#* })"
   assert_stop_before_start
   assert_started "the guard did not start its own server after the ${foreign%% *} owner released the socket"
-  assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
-    "the guard did not name the foreign owner and its birth"
+  if [ "${foreign%% *}" = ssh ] && ! printf '%s\n' "$GUARD_OUT" | grep -q "pid ${foreign#* } born outside the Aqua login session (ssh)"; then
+    assert_contains "$GUARD_OUT" "pid ${foreign#* } that is not a session leader" \
+      "the guard did not identify the non-leader foreign owner"
+  else
+    assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
+      "the guard did not name the foreign owner and its birth"
+  fi
 done
 pass "background, inherited-XPC, SSH-born, SSH-descended, and unprovable owners are taken over"
 

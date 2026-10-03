@@ -40,11 +40,12 @@ BASE_PATH="$TOOLS:/usr/bin:/bin:/usr/sbin:/sbin"
 # Real socket-owner holders for the Darwin birth check: jq blocked on a fifo
 # this test keeps open, with exactly the marker environment each birth needs.
 JQ=$(command -v jq)
+PERL=$(command -v perl)
 HOLDER_FD=5
 hold() { # <marker-env...> -> HOLDER_PID
   local fifo="$TMP_ROOT/holder-$HOLDER_FD.fifo"
   mkfifo "$fifo"
-  env -i "$@" "$JQ" . "$fifo" &
+  env -i "$@" "$PERL" -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV' "$JQ" . "$fifo" &
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   eval "exec ${HOLDER_FD}>\"\$fifo\""

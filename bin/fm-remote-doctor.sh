@@ -668,11 +668,25 @@ check_herdr_server() {
       record herdr-server "ok: session $HERDR_SESSION_NAME is running"
       return 0
     fi
-    local birth
+    local birth socket owner leader_rc
     birth=$(herdr_server_birth)
+    socket=$(herdr_server_status_json | jq -r '.server.socket // empty' 2>/dev/null || true)
+    owner=$(fm_remote_herdr_socket_owner "$socket" 2>/dev/null || true)
+    if [ -n "$owner" ] && [ "$PLATFORM" = darwin ]; then
+      if fm_remote_herdr_process_is_session_leader "$owner"; then
+        leader_rc=0
+      else
+        leader_rc=$?
+      fi
+      if [ "$leader_rc" -eq 1 ]; then
+        record herdr-server "fixable: session $HERDR_SESSION_NAME is served by pid $owner but that process is not a session leader, so saved machines refuse it" \
+          "rerun this command with --fix so the launch agent restarts the server as its own session leader"
+        return 0
+      fi
+    fi
     case "$birth" in
       launchd\ *|worker\ *)
-        record herdr-server "ok: session $HERDR_SESSION_NAME is running in the Aqua login session (pid ${birth#* }, ${birth%% *})"
+        record herdr-server "ok: session $HERDR_SESSION_NAME is running in the Aqua login session (pid ${birth#* }, ${birth%% *}) and is a session leader"
         ;;
       nolsof)
         record herdr-server "human: session $HERDR_SESSION_NAME is running but lsof does not resolve, so its server's birth cannot be proven" \
