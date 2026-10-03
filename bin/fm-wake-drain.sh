@@ -221,6 +221,11 @@ presented_max_row() { # <rows-file>
 }
 
 case "${1:-}" in
+  --format|--full)
+    # The snapshot helper is the bounded presentation owner. It invokes this
+    # script with no presentation flag, so this delegation cannot recurse.
+    exec "$SCRIPT_DIR/fm-supervision-context.sh" "$@"
+    ;;
   '') ;;
   --ack-through)
     ACK_THROUGH=${2:-}
@@ -231,7 +236,7 @@ case "${1:-}" in
     case "$ACK_GENERATION" in ''|*[!A-Za-z0-9._-]*) echo "wake drain: invalid recovery generation" >&2; exit 2 ;; esac
     [ "$#" -eq 4 ] || { echo "wake drain: unexpected acknowledgement arguments" >&2; exit 2; }
     ;;
-  *) echo "usage: fm-wake-drain.sh [--ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
+  *) echo "usage: fm-wake-drain.sh [--format compact|json|--full] [--ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
 esac
 
 [ "$ACTOR" != branch ] || require_branch_eligible_rows || exit 1

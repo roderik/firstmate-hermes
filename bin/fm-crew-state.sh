@@ -167,6 +167,48 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 
+# Fleet mode composes the same authoritative single-id reconciliation for every
+# requested crew in one bounded invocation. The child calls keep the existing
+# semantics in one owner instead of maintaining a second classifier.
+if [ "${1:-}" = --json ] || [ "${1:-}" = --all ]; then
+  ALL_MODE=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --json) shift ;;
+      --all) ALL_MODE=1; shift ;;
+      *) break ;;
+    esac
+  done
+  [ "$ALL_MODE" -eq 0 ] || [ "$#" -eq 0 ] || { echo "usage: fm-crew-state.sh --all [--json]" >&2; exit 2; }
+  IDS=()
+  if [ "$ALL_MODE" -eq 1 ]; then
+    for meta in "$STATE"/*.meta; do
+      [ -f "$meta" ] || continue
+      id=${meta##*/}
+      IDS+=("${id%.meta}")
+    done
+  else
+    IDS=("$@")
+  fi
+  [ "${#IDS[@]}" -gt 0 ] || { printf '%s\n' '[]'; exit 0; }
+  printf '['
+  first=1
+  for id in "${IDS[@]}"; do
+    line=$(FM_CREW_STATE_JSON_CHILD=1 "$0" "$id") || line='state: unknown · source: none · child read failed'
+    body=${line#state: }
+    state=${body%% · source:*}
+    rest=${body#* · source: }
+    source=${rest%% · *}
+    detail=$rest
+    [ "$detail" = "$source" ] && detail=
+    [ "$first" -eq 1 ] || printf ','
+    first=0
+    jq -cn --arg id "$id" --arg state "$state" --arg source "$source" --arg detail "$detail" \
+      '{id:$id,state:$state,source:$source,detail:$detail}'
+  done
+  printf ']\n'
+  exit 0
+fi
 # shellcheck source=bin/fm-tmux-lib.sh
 . "$SCRIPT_DIR/fm-tmux-lib.sh"
 # shellcheck source=bin/fm-backend.sh
@@ -185,7 +227,7 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-dod-lib.sh"
 
 ID=${1:-}
-[ -n "$ID" ] || { echo "usage: fm-crew-state.sh <id>" >&2; exit 2; }
+[ -n "$ID" ] || { echo "usage: fm-crew-state.sh <id> | --json <id>... | --all" >&2; exit 2; }
 
 # Fleet snapshot composition supplies its captured metadata path here so every
 # state read resolves the same task generation selected by that snapshot.
