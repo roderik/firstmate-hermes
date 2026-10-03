@@ -1,0 +1,15 @@
+# S6 adversarial: a live process holds state/.status-presentation-lock; drain presentation must fail visibly
+$ FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 403 --recovery-generation 329802.1791030104.TyXCw3
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+1791030104	403	signal	lk1	signal: task9 done
+STATUS PRESENTATION SKIPPED: lock remains held by live pid 329802 after 2s; retry on the next drain.
+processing commands:
+[context exit 0]
+$ FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 bin/fm-wake-drain.sh   # raw drain, same conditions, for comparison
+1791030104	403	signal	lk1	signal: task9 done
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 403 --recovery-generation 329802.1791030104.TyXCw3
+STATUS PRESENTATION SKIPPED: lock remains held by live pid 329802 after 2s; retry on the next drain.
+[raw drain exit 0]

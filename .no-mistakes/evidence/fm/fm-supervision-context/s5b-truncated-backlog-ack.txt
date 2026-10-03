@@ -1,0 +1,6 @@
+### S5b (adversarial): 300 ordinary ~120-byte check rows; compare raw drain vs context
+context: rows shown=269, truncated=1
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 701 --recovery-generation 4034293.1791029630.F6VbXL
+raw drain (same generation, not acked): rows shown=300
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 701 --recovery-generation 4034293.1791029630.F6VbXL
+=> acking the context's printed command would retire 31 rows the agent never saw

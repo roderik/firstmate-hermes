@@ -1,0 +1,13 @@
+# S4: 400 queued ~230-byte check rows (~95 KB, ~3x the old 32 KB cap)
+context output bytes: 100792
+rows shown: 400
+highest seq shown: 402
+ack line: WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 402 --recovery-generation 258780.1791030069.TObwR2
+first 4 lines:
+drain-exit: 0
+diagnostics and acknowledgement:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 402 --recovery-generation 258780.1791030069.TObwR2
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+last 2 lines:
+1791030089	402	check	bk-400	check: backlog row 400 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+processing commands:

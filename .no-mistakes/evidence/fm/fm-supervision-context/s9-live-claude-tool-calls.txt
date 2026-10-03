@@ -1,0 +1,6 @@
+Bash: echo "FM_HOME=$FM_HOME"; grep -n -i -A40 'supervision' /home/roderik/.claude/projects/-home-roderik--no-mistakes-worktrees-49bdd8e38f81-01M40T83XHMTSTHS6G9H8Z2V75/2988acae-9aa2-4035-9992-12d264b8e650/tool-results/hook-3d9e6cf4-97d1-4236-863f-042dbee11b10-stdout.txt | head -80
+Bash: cd /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75; ls $FM_HOME $FM_HOME/state; bin/fm-supervision-instructions.sh --help 2>&1 | head -30
+Bash: cd /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75; bin/fm-supervision-instructions.sh --harness claude; echo ---; cat $FM_HOME/state/task1.status; ls -la $FM_HOME/state $FM_HOME/data
+Bash: cd /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75; bin/fm-supervision-context.sh; echo "exit=$?"
+Bash: cd /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75; for t in task3 task4; do echo "== $t"; bin/fm-crew-state.sh $t 2>&1 | head -10; done
+Bash: cd /home/roderik/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75; bin/fm-wake-drain.sh --ack-through 405 --recovery-generation 449354.1791030201.h1Hul5; echo "exit=$?"

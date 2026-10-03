@@ -1,0 +1,22 @@
+### S7 live Claude primary (lab FM_HOME) handling one wake: tool calls issued
+Bash: cat /home/roderik/.claude/projects/-home-roderik--no-mistakes-worktrees-49bdd8e38f81-01M40T83XHMTSTHS6G9H8Z2V75/48823283-82cb-4e53-8b5e-82bba18ff5c4/tool-results/hook-9d14ddda-5b6e-43ca-a226-6c2d6bf4c584-stdout.txt | sed -n '/SUPERVISION/,$p' | head -80
+Bash: f=/home/roderik/.claude/projects/-home-roderik--no-mistakes-worktrees-49bdd8e38f81-01M40T83XHMTSTHS6G9H8Z2V75/48823283-82cb-4e53-8b5e-82bba18ff5c4/tool-results/hook-9d14ddda-5b6e-43ca-a226-6c2d6bf4c584-stdout.txt; grep -n -i 'supervis\|wake\|ack' $f | head -30; ls docs/supervision-protocols/
+Bash: cat docs/supervision-protocols/claude.md
+Bash: bin/fm-supervision-context.sh 2>&1 | head -80
+Bash: bin/fm-wake-drain.sh --ack-through 702 --recovery-generation 4073428.1791029666.leHWH6
+--- lab queue after turn: 0 rows
+--- pane:
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/49bdd8e38f81/01M40T83XHMTSTHS6G9H8Z2V75
+❯ Stop hook feedback: signal: wake pending. This is a supervision lab test: follow only step 1 and 3 of the claude supervision protocol for this one wake (no spawning, no messaging other sessions, no
+  merging); report briefly what the wake and status say, then acknowledge as instructed, and stop.
+  Read 1 file, ran 4 shell commands
+● Captain, I handled the one notification in this supervision lab test and acknowledged it.
+  - Notification: the lab task "task7" reported its work finished, and its PR #7 shows green checks. The notification didn't include a full PR link.
+  - Unread status note: task7 is waiting on you to choose the API.
+  - Acknowledged: this notification is marked handled. The acknowledgement returned no errors.
+  As the test instructed, I didn't start any workers, message any other sessions or merge anything. Outside this test, PR #7 would need your merge call and the API choice would need your answer.
+✻ Cooked for 18s · done 2:15 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent

@@ -1,0 +1,11 @@
+# S6b adversarial: lab state dir made read-only so the drain cannot lock/mutate the queue
+$ bin/fm-supervision-context.sh
+drain-exit: 1
+diagnostics and acknowledgement:
+wake drain: queue lock could not be acquired safely
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[context exit 1]
+$ bin/fm-wake-drain.sh  # raw drain for comparison
+wake drain: queue lock could not be acquired safely
+[raw drain exit 1]

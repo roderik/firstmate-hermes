@@ -1,0 +1,21 @@
+### S4: in-flight task with no watcher -> alarm surfaces in the context, first and repeat call
+$ bin/fm-supervision-context.sh  (1st)
+drain-exit: 0
+diagnostics and acknowledgement:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]
+$ bin/fm-supervision-context.sh  (2nd, same episode)
+drain-exit: 0
+diagnostics and acknowledgement:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]

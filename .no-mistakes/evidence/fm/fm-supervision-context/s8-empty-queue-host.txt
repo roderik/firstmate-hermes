@@ -1,0 +1,9 @@
+# S8: supervision host on, empty wake queue (cycle-boundary path)
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]
+$ bin/fm-wake-drain.sh  # raw drain
+[exit 0]

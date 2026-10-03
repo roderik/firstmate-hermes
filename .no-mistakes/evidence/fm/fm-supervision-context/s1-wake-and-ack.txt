@@ -1,0 +1,9 @@
+### S1: one wake row -> one context call shows row + ack command
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 3968029.1791029546.HhuJxn
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+1791029546	1	signal	fm-lab:task1	signal: task1 pushed PR #42
+processing commands:
+[exit 0]

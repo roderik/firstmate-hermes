@@ -1,0 +1,27 @@
+=== claude (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+19:3. On a `Stop hook feedback` wake (`signal:`, `stale:`, `check:`, or `heartbeat`), run `bin/fm-supervision-context.sh` once first and handle the wake.
+42:   `supervision-host: branch-outcome: ...` means it handled a wake and recorded captain outcomes for you: run `bin/fm-supervision-context.sh` once, process each entry of its `BRANCH OUTCOMES` section as firstmate from the task's current state, because each entry says how long ago it was recorded (tell the captain, land or merge what is ready, answer or escalate a decision, or act on a blocker; your reply covers only entries still open, as if a settled one, such as a PR since merged, had never been listed), then run the `mark-processed` acknowledgement it prints; every context snapshot presents them again until you do.
+51:3. `supervision-host: cycle boundary ...` means the host ended its park at its bound: run `bin/fm-supervision-context.sh` once, handle whatever it presents, run its printed acknowledgement (an empty queue prints `--ack-through 0`), and end the turn; the next park starts at that turn end.
+=== codex (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+18:4. Ordinary wake: if the command prints `signal:`, `stale:`, `check:`, or `heartbeat`, run `bin/fm-supervision-context.sh` once, handle that wake, then start the next checkpoint.
+19:5. If the command prints `checkpoint:` or exits 124 with no wake, run `bin/fm-supervision-context.sh` once anyway, process any queued user message now visible to Codex, then start the next checkpoint.
+23:8. Failure or missing cycle only: run `bin/fm-supervision-context.sh` once, inspect the failure, then start a fresh foreground checkpoint.
+=== cursor (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+19:   On that wake, run `bin/fm-supervision-context.sh` once first and handle it.
+46:   `supervision-host: branch-outcome: ...` means it handled a wake and recorded captain outcomes for you: run `bin/fm-supervision-context.sh` once, process each entry of its `BRANCH OUTCOMES` section as firstmate from the task's current state, because each entry says how long ago it was recorded (tell the captain, land or merge what is ready, answer or escalate a decision, or act on a blocker; your reply covers only entries still open, as if a settled one, such as a PR since merged, had never been listed), then run the `mark-processed` acknowledgement it prints; every context snapshot presents them again until you do.
+55:3. `supervision-host: cycle boundary ...` means the host ended its park at its bound: run `bin/fm-supervision-context.sh` once, handle whatever it presents, run its printed acknowledgement (an empty queue prints `--ack-through 0`), and end the turn; the next park starts at that turn end.
+=== grok (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+35:1. Run `bin/fm-supervision-context.sh` once first.
+59:3. `supervision-host: cycle boundary ...` means the host ended its park at its bound: run `bin/fm-supervision-context.sh` once, handle whatever it presents, run its printed acknowledgement (an empty queue prints `--ack-through 0`), and re-arm the same background host call.
+=== omp (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+28:10. Missing, failed, or unhealthy cycle only: if a later notification explicitly reports one of those repair conditions, run `bin/fm-supervision-context.sh` once, inspect the failure text, call `fm_watch_arm_omp`, and restart omp inside this home if the extensions are not loaded.
+50:3. `supervision-host: cycle boundary ...` means the host ended its park at its bound and the next park has already started: run `bin/fm-supervision-context.sh` once, handle whatever it presents, and run its printed acknowledgement (an empty queue prints `--ack-through 0`).
+=== opencode (supervision host on)
+14:1. Run `bin/fm-supervision-context.sh` once and keep its snapshot.
+21:7. Failure or missing cycle only: if the plugin reports a watcher failure, run `bin/fm-supervision-context.sh` once, inspect the failure text, and use `bin/fm-watch-arm.sh` manually only as a short recovery probe.
+37:3. `supervision-host: cycle boundary ...` means the host ended its park at its bound and the next park has already started: run `bin/fm-supervision-context.sh` once, handle whatever it presents, and run its printed acknowledgement (an empty queue prints `--ack-through 0`).

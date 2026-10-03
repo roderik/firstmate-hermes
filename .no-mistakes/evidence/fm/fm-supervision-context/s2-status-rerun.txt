@@ -1,0 +1,9 @@
+$ # S2: status line appended with no wake-queue row; context reruns the drain each call
+$ echo "note: captain said use REST" >> state/task1.status; bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+UNREAD STATUS (new since last drain, not re-printed after this presentation):
+task1 note: captain said use REST
+processing commands:
+[exit 0]

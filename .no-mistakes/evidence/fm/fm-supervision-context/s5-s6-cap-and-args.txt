@@ -1,0 +1,27 @@
+### S5 (adversarial): 400-row backlog (~90KB) -> payload capped, ack command still present
+exit=0 bytes=32777 lines=138
+--- head ---
+drain-exit: 0
+diagnostics and acknowledgement:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 401 --recovery-generation 3986158.1791029581.H7Wpop
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+--- tail ---
+... snapshot payload truncated at 32768 bytes ...
+processing commands:
+$ bin/fm-wake-drain.sh --ack-through 401 --recovery-generation 3986158.1791029581.H7Wpop
+[exit 0]
+/bin/bash: line 31: /tmp/fm-lab.eR06rI/state/wake-queue: No such file or directory
+--- queue rows remaining after ack: 0
+### S6 (adversarial): unknown/removed option rejected
+fm-supervision-context: unknown argument: --full
+usage: fm-supervision-context.sh
+[--full exit 2]
+fm-supervision-context: unknown argument: --format
+usage: fm-supervision-context.sh
+[--format exit 2]
+fm-supervision-context: unknown argument: --since-seq
+usage: fm-supervision-context.sh
+[--since-seq exit 2]
+fm-supervision-context: unknown argument: --home
+usage: fm-supervision-context.sh
+[--home exit 2]

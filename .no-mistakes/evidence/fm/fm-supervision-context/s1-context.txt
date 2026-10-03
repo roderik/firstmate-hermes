@@ -1,0 +1,22 @@
+$ # S1: queue two wakes in lab home, run context, run printed ack, rerun context
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 222601.1791030025.ChrAxz
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+1791030025	1	signal	k1	signal: task1 finished build
+1791030025	2	check	k2	check: task2 stale 20m
+processing commands:
+[exit 0]
+$ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 222601.1791030025.ChrAxz
+[exit 0]
+$ bin/fm-supervision-context.sh   # after ack
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]
+$ bin/fm-supervision-context.sh --full  # removed option
+fm-supervision-context: unknown argument: --full
+usage: fm-supervision-context.sh
+[exit 2]

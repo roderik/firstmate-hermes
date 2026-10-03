@@ -1,0 +1,18 @@
+### S2: run the printed ack command, then the next context call is clean
+$ bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 3968029.1791029546.HhuJxn
+[exit 0]
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]
+### S3: status line added with no queue row is presented on next call (no stale cache)
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+UNREAD STATUS (new since last drain, not re-printed after this presentation):
+task1 note: captain said use REST
+processing commands:
+[exit 0]

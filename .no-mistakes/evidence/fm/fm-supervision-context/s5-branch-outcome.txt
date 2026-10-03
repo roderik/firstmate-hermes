@@ -1,0 +1,22 @@
+# S5: supervision host recorded a captain outcome; context shows it and its mark-processed command
+$ bin/fm-branch-outcome.sh append --task task7 --verdict captain --summary "PR #42 ready to merge"
+1
+[exit 0]
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+BRANCH OUTCOMES (captain outcomes the supervision session recorded for you, one line per task, oldest first; each says what was true when it was recorded, so check the task's current state first, including its still-open decisions listed above under OPEN DECISIONS, and sort them into still open and already settled, such as a decision since answered, a PR since merged, or a task since finished - process the still-open ones as firstmate: tell the captain, land or merge what is ready, answer or escalate a decision, or act on a blocker; your reply to the captain covers only those, as if the settled ones had never been listed, and a settled one needs only the acknowledgement):
+[seq 1, recorded 0m ago] task7: PR #42 ready to merge
+BRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through 1; until then every drain presents them again
+processing commands:
+BRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through 1; until then every drain presents them again
+[exit 0]
+$ bin/fm-branch-outcome.sh mark-processed --through 1
+[exit 0]
+$ bin/fm-supervision-context.sh
+drain-exit: 0
+diagnostics and acknowledgement:
+wake rows / event paths / latest task events / open decisions / unread status / branch outcomes / divergence:
+processing commands:
+[exit 0]
