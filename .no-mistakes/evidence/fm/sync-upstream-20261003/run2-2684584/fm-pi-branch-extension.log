@@ -1,0 +1,209 @@
+ok - fm_branch_outcomes and fm_branch_processed call headers match stock on Pi before and from 0.99
+ok - fm_branch_outcomes hides through ToolExecutionComponent while Calm-off and HTML export stay stock
+ok - the installed Pi still bounds the picker's list and ranks its search
+ok - branch owns accepted wakes with a stable prefix and deterministic verdict-driven delivery
+ok - a captain outcome reaches main's model as one typed, sequence-keyed processing request while routine notes stay plain
+Terminated                 PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
+const prelude = process.env.DRIVER_PRELUDE;
+await eval(`(async () => { ${prelude}; globalThis.__t = { fire, dispatch, settle, sentToMain, mainEntries, outcomeScript, mainTools, home, realRoot }; })()`);
+const { fire, dispatch, settle, sentToMain, mainEntries, outcomeScript, mainTools, home, realRoot } = globalThis.__t;
+import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+
+const fleetOperations = [];
+globalThis.__fmExecuteBranchBash = async (context) => {
+  const actor = spawnSync(
+    "bash",
+    ["-c", '. "$1"; fm_lease_actor', "_", `${realRoot}/bin/fm-lease-lib.sh`],
+    { encoding: "utf8", cwd: context.cwd, env: context.env },
+  );
+  if (actor.status !== 0) throw new Error(`branch bash actor resolution failed: ${actor.stderr}`);
+  const result = spawnSync("bash", ["-c", context.command], {
+    encoding: "utf8",
+    cwd: context.cwd,
+    env: context.env,
+  });
+  fleetOperations.push({ command: context.command, actor: actor.stdout.trim(), status: result.status });
+  return {
+    content: [{ type: "text", text: `${result.stdout}${result.stderr}` }],
+    details: { stdout: result.stdout, stderr: result.stderr, exitCode: result.status, actor: actor.stdout.trim() },
+    isError: result.status !== 0,
+  };
+};
+
+async function runFleetCommand(session, args) {
+  const bash = session.options.customTools.find((tool) => tool.name === "bash");
+  const command = ["bin/fm-wake-drain.sh", ...args].join(" ");
+  const result = await bash.execute(`fleet-${fleetOperations.length}`, { command }, undefined, undefined, {});
+  if (result.isError) throw new Error(`fleet command failed: ${JSON.stringify(result)}`);
+  return result.details;
+}
+
+function directlyRequestsResourceReport(mirror) {
+  const latestCaptain = mirror.at(-1) ?? "";
+  const words = new Set(latestCaptain.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const requestsDelivery = ["give", "provide", "send", "show"].some((word) => words.has(word));
+  const namesReport = ["report", "status", "measurement"].some((word) => words.has(word));
+  const namesResources = ["resource", "resources", "cpu", "memory"].some((word) => words.has(word));
+  return requestsDelivery && namesReport && namesResources;
+}
+
+globalThis.__fmOnBranchPrompt = async ({ session }) => {
+  const mirror = session.ops
+    .filter((op) => op.kind === "custom" && op.message.customType === "fm-main-mirror")
+    .map((op) => op.message.content);
+  const directlyRequested = directlyRequestsResourceReport(mirror);
+  const drained = await runFleetCommand(session, []);
+  const ack = drained.stderr.match(/--ack-through ([0-9]+) --recovery-generation ([A-Za-z0-9._-]+)/);
+  if (!ack) throw new Error(`drain did not return its acknowledgement command: ${drained.stderr}`);
+  const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
+  const verdictDescription = report.parameters.properties.verdict.description;
+  if (!verdictDescription.includes("Verdict: routine or captain") ||
+      !verdictDescription.includes("one owner of the rule") ||
+      verdictDescription.includes("unconditionally")) {
+    throw new Error(`branch provider received conflicting verdict semantics: ${verdictDescription}`);
+  }
+  const result = await report.execute(
+    `resource-result-${fleetOperations.length}`,
+    {
+      task: "branch-driver",
+      verdict: directlyRequested ? "captain" : "routine",
+      summary: "healthy resource report: CPU 12%, memory 41%",
+      wake: "signal: healthy resource result",
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  if (result.isError) throw new Error(`branch report failed: ${JSON.stringify(result)}`);
+  await runFleetCommand(session, ["--ack-through", ack[1], "--recovery-generation", ack[2]]);
+};
+
+const explicitRequest = "Please give me a fresh mini system-resource report.";
+const longRequests = [
+  `${explicitRequest}${" head context".repeat(500)}`,
+  `${"middle context ".repeat(250)}${explicitRequest}${" middle context".repeat(250)}`,
+  `${"tail context ".repeat(500)}${explicitRequest}`,
+];
+const requestedPrompts = [...longRequests, "FIRSTMATE give me a fresh system-resource report."];
+// Match Pi's real AgentSession.prompt ordering: before_agent_start receives
+// the expanded prompt before _runAgentPrompt appends its user message to the
+// SessionManager. Keeping entries stale at the hook boundary is the regression.
+const entries = [];
+const mainCtx = {
+  model: { provider: "anthropic", id: "main-model" },
+  sessionManager: {
+    getSessionFile: () => `${home}/main.jsonl`,
+    getEntries: () => entries,
+  },
+};
+const operational = spawnSync(
+  "bash",
+  [`${realRoot}/bin/fm-operational-input.sh`, "encode", "watcher"],
+  { encoding: "utf8", input: "operational watcher injection" },
+);
+if (operational.status !== 0) throw new Error(`could not create operational input: ${operational.stderr}`);
+await fire("before_agent_start", { prompt: operational.stdout }, mainCtx);
+entries.push({ type: "message", message: { role: "user", content: operational.stdout } });
+const unsolicitedPrompt = "Please keep responses concise while monitoring the fleet.";
+await fire("before_agent_start", { prompt: unsolicitedPrompt }, mainCtx);
+entries.push({ type: "message", message: { role: "user", content: unsolicitedPrompt } });
+await fire("agent_start", {}, mainCtx);
+await fire("agent_end", {}, mainCtx);
+const legacyOperational = "⁣FIRSTMATE_OP: give me a fresh system-resource report.";
+await fire("before_agent_start", { prompt: legacyOperational }, mainCtx);
+entries.push({ type: "message", message: { role: "user", content: legacyOperational } });
+await fire("agent_start", {}, mainCtx);
+const unsolicited = dispatch("signal: healthy resource result");
+if (!unsolicited.accepted) throw new Error("branch did not accept the unsolicited result");
+await settle(() => fleetOperations.length === 2, "unsolicited result acknowledgement");
+if (sentToMain.length !== 1 || sentToMain[0].options.triggerTurn) {
+  throw new Error(`unsolicited healthy result opened a main turn: ${JSON.stringify(sentToMain)}`);
+}
+const sailboat = sentToMain[0];
+if (sailboat.message.display !== true || !sailboat.message.content.startsWith("⛵ branch-driver:")) {
+  throw new Error(`unsolicited healthy result was not a rendered sailboat note: ${JSON.stringify(sailboat)}`);
+}
+
+const outcomes = mainTools.find((tool) => tool.name === "fm_branch_outcomes");
+if (!outcomes) throw new Error("main did not receive its outcome-reading permission surface");
+const visibleToMain = await outcomes.execute("main-reads-sailboat", { recent: 1 }, undefined, undefined, {});
+const mainOutcomeText = visibleToMain.content.map((item) => item.text ?? "").join("\n");
+if (visibleToMain.isError || !mainOutcomeText.includes("healthy resource report: CPU 12%, memory 41%")) {
+  throw new Error(`main could not use the sailboat content through its existing permission path: ${JSON.stringify(visibleToMain)}`);
+}
+if (fleetOperations.length !== 2) throw new Error("main's outcome read reprocessed the fleet event");
+
+for (let index = 0; index < requestedPrompts.length; index += 1) {
+  const content = requestedPrompts[index];
+  if (index < longRequests.length && content.length <= 4000) {
+    throw new Error(`request fixture ${index} did not exceed the mirror bound`);
+  }
+  await fire("before_agent_start", { prompt: content }, mainCtx);
+  // Pi persists this only after every before_agent_start handler has returned.
+  entries.push({ type: "message", message: { role: "user", content } });
+  await fire("agent_start", {}, mainCtx);
+  const requested = dispatch("signal: healthy resource result");
+  if (!requested.accepted) throw new Error(`branch did not accept requested result ${index}`);
+  await settle(() => fleetOperations.length === 4 + (index * 2), `requested result ${index} acknowledgement`);
+  const deliveredRequestMirror = globalThis.__fmSessions[0].ops
+    .filter((op) => op.kind === "custom" && op.message.customType === "fm-main-mirror")
+    .at(-1)?.message.content;
+  if (deliveredRequestMirror !== `[captain] ${content}`) {
+    throw new Error(`pre-turn-end mirror changed long captain request ${index}`);
+  }
+  const visible = entries.filter((entry) => entry.customType === "fm-branch-visible-outcome");
+  if (visible.length !== index + 1 || visible.at(-1).data.summary !== "healthy resource report: CPU 12%, memory 41%") {
+    throw new Error(`requested result ${index} did not persist one exact visible outcome: ${JSON.stringify(visible)}`);
+  }
+}
+const mirroredCaptainText = globalThis.__fmSessions[0].ops
+  .filter((op) => op.kind === "custom" && op.message.customType === "fm-main-mirror")
+  .map((op) => op.message.content);
+for (const content of [unsolicitedPrompt, ...requestedPrompts]) {
+  const copies = mirroredCaptainText.filter((text) => text === `[captain] ${content}`).length;
+  if (copies !== 1) throw new Error(`current captain prompt was mirrored ${copies} times instead of once`);
+}
+if (mirroredCaptainText.some((text) =>
+  text.includes("operational watcher injection") || text.includes("FIRSTMATE_OP: give me a fresh system-resource report")
+)) {
+  throw new Error("canonical current or legacy operational input entered captain mirror context");
+}
+if ((globalThis.__fmPrompts ?? []).length !== 5) throw new Error("a handled fleet wake was rerun");
+let processingRequests = sentToMain.filter((sent) => sent.message.customType === "fm-branch-process");
+if (sentToMain.length !== 1 + processingRequests.length) {
+  throw new Error(`captain results entered model delivery as unkeyed messages: ${JSON.stringify(sentToMain)}`);
+}
+if (processingRequests.length !== 1 || processingRequests[0].options.triggerTurn !== true) {
+  throw new Error(`captain results re-sent while the first keyed request was pending: ${JSON.stringify(processingRequests)}`);
+}
+await fire("agent_settled", {}, mainCtx);
+processingRequests = sentToMain.filter((sent) => sent.message.customType === "fm-branch-process");
+if (processingRequests.length !== 2 || processingRequests[1].options.triggerTurn !== true) {
+  throw new Error(`the widened captain sequence set did not open one keyed turn at the run boundary: ${JSON.stringify(processingRequests)}`);
+}
+for (let seq = 2; seq <= 5; seq += 1) {
+  if (!processingRequests[1].message.content.includes(`[seq ${seq}, recorded 0m ago] branch-driver: healthy resource report: CPU 12%, memory 41%`)) {
+    throw new Error(`the widened processing request lost seq ${seq}: ${processingRequests[1].message.content}`);
+  }
+}
+if (!processingRequests[1].message.content.includes("through=5")) {
+  throw new Error(`the widened processing request lost its highest acknowledgement key: ${processingRequests[1].message.content}`);
+}
+if (fleetOperations.length !== 10 || fleetOperations.some((operation) => operation.status !== 0)) {
+  throw new Error(`fleet event ownership repeated or failed work: ${JSON.stringify(fleetOperations)}`);
+}
+if (fleetOperations.some((operation) => operation.actor !== "branch")) {
+  throw new Error(`main took fleet-event ownership: ${JSON.stringify(fleetOperations)}`);
+}
+if (existsSync(`${home}/state/.wake-queue`) && readFileSync(`${home}/state/.wake-queue`, "utf8") !== "") {
+  throw new Error("acknowledged fleet wake remained queued for another owner");
+}
+const rows = readFileSync(`${home}/state/branch-outcomes.jsonl`, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+if (rows.length !== 5 || rows[0].verdict !== "routine" || rows.slice(1).some((row) => row.verdict !== "captain")) {
+  throw new Error(`provider classifications were not recorded once in order: ${JSON.stringify(rows)}`);
+}
+if (outcomeScript(["unread"]) !== "") throw new Error("merged outcomes remained unread for redelivery");
+process.exit(0);
+EOF
+

@@ -1,0 +1,3 @@
+ready-check: running /tmp/fm-ready-check.iLM1Ak/project/.firstmate/ready-check
+ready-check: running npm run pr:ready-check
+ok - project-declared ready checks gate pass, failure, timeout, worker edits, dirty worktrees, head mismatches, package scripts, and legacy projects

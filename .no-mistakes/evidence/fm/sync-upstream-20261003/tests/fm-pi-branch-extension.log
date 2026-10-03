@@ -1,0 +1,117 @@
+ok - fm_branch_outcomes and fm_branch_processed call headers match stock on Pi before and from 0.99
+ok - fm_branch_outcomes hides through ToolExecutionComponent while Calm-off and HTML export stay stock
+ok - the installed Pi still bounds the picker's list and ranks its search
+ok - branch owns accepted wakes with a stable prefix and deterministic verdict-driven delivery
+ok - a captain outcome reaches main's model as one typed, sequence-keyed processing request while routine notes stay plain
+ok - requested and unsolicited healthy outcomes keep distinct delivery and event ownership
+ok - captain outcomes are exact and exactly once across crash, reload, busy main, compaction, and an unrelated assistant response
+ok - a captain outcome opens one sequence-keyed processing turn, survives empty and unrelated answers, is re-presented at run end and session start, and closes only on its acknowledgement
+ok - Pi: an abbreviated processing request points to the full outcome and instructs main to read it first
+ok - Pi: a marker-less >1 MiB backlog is presented oldest first in bounded requests and continues after batch acknowledgement
+ok - an unprocessed captain row the store lists without its age is reported to main, never formatted undated, and stays unprocessed until the store is healthy
+ok - scopeForUnreadWake excludes every main-only class without vetoing eligible task-local rows, and writes the eligible snapshot
+ok - second-mate signal rows route by their new span while crewmate and stale routing stay unchanged
+ok - branch prompt_cache_key is stable per home across sessions and distinct between homes
+ok - branch default-on eligibility (task-scoped, heartbeat, legacy flag ignored) binds and a broken branch rejects to watcher fallback
+ok - under the away-posture record the wake carries the verbatim read-back tail, claims every row, opens no processing turn, cancels a pending request, and presents the accumulated rows after archive
+Terminated                 PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
+const prelude = process.env.DRIVER_PRELUDE;
+await eval(`(async () => { ${prelude}; globalThis.__t = { fire, bus, makeOffer, outcomeScript, defaultSessionCtx, home, realRoot, approvedProject }; })()`);
+const { fire, bus, makeOffer, outcomeScript, defaultSessionCtx, home, realRoot, approvedProject } = globalThis.__t;
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, utimesSync } from "node:fs";
+
+const state = `${home}/state`;
+const env = { ...process.env, FM_HOME: home, FM_STATE_OVERRIDE: state, FM_CONFIG_OVERRIDE: `${home}/config` };
+const run = (args, label, extra = {}) => {
+  const result = spawnSync("bash", args, { encoding: "utf8", env: { ...env, ...extra } });
+  if (result.status !== 0) throw new Error(`${label} failed: ${result.stderr}`);
+  return result.stdout || "";
+};
+const queued = () => (existsSync(`${state}/.wake-queue`) ? readFileSync(`${state}/.wake-queue`, "utf8") : "")
+  .split("\n").filter(Boolean);
+const outcomes = () => outcomeScript(["list", "--recent", "100"]).split("\n").filter(Boolean).map((line) => JSON.parse(line));
+const captains = () => outcomes().filter((row) => row.verdict === "captain");
+const unprocessedSeqs = () => outcomeScript(["unprocessed"]).split("\n").filter(Boolean).map((line) => JSON.parse(line).seq);
+
+run([`${realRoot}/bin/fm-afk-contract.sh`, "enter", "--words", "watch the fleet; merge nothing"], "away record");
+await fire("session_start", {}, defaultSessionCtx);
+
+globalThis.__fmExecuteBranchBash = async (context) => {
+  const result = spawnSync("bash", ["-c", context.command], { encoding: "utf8", cwd: context.cwd, env: context.env });
+  return {
+    content: [{ type: "text", text: `${result.stdout}${result.stderr}` }],
+    details: { stdout: result.stdout, stderr: result.stderr, exitCode: result.status },
+    isError: result.status !== 0,
+  };
+};
+let commands = 0;
+async function runFleetCommand(session, args) {
+  const bash = session.options.customTools.find((tool) => tool.name === "bash");
+  const result = await bash.execute(`fleet-${commands++}`, { command: ["bin/fm-wake-drain.sh", ...args].join(" ") }, undefined, undefined, {});
+  if (result.isError) throw new Error(`fleet command failed: ${JSON.stringify(result)}`);
+  return result.details;
+}
+// The branch's model: every presented wake is escalated to the captain, as
+// the flood's held-PR report was, then acknowledged exactly as printed.
+globalThis.__fmOnBranchPrompt = async ({ session }) => {
+  const drained = await runFleetCommand(session, []);
+  const ack = drained.stderr.match(/--ack-through ([0-9]+) --recovery-generation ([A-Za-z0-9._-]+)/);
+  if (!ack) throw new Error(`drain did not return its acknowledgement command: ${drained.stderr}`);
+  const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
+  const result = await report.execute(
+    `held-${commands}`,
+    { task: "held", verdict: "captain", summary: `escalated: ${drained.stdout.trim().slice(0, 400)}` },
+    undefined,
+    undefined,
+    {},
+  );
+  if (result.isError) throw new Error(`branch report failed: ${JSON.stringify(result)}`);
+  await runFleetCommand(session, ["--ack-through", ack[1], "--recovery-generation", ack[2]]);
+};
+async function wakeBranch(message) {
+  const offer = makeOffer(message, [approvedProject]);
+  bus.emit("fm-branch-supervision:dispatch", offer);
+  if (!offer.accepted) throw new Error(`the away wake "${message}" was refused`);
+  await offer.settlement;
+  if (queued().length !== 0) throw new Error(`the branch left rows queued: ${queued()}`);
+}
+// One watcher cadence: the scan marker is past due, the real scan runs, and
+// whatever it queued wakes the branch as the watcher's close would.
+async function cadence(n) {
+  const marker = `${state}/.inactive-outcome-reconcile`;
+  if (existsSync(marker)) {
+    const past = Math.floor(Date.now() / 1000) - 120;
+    utimesSync(marker, past, past);
+  }
+  run([`${realRoot}/bin/fm-inactive-reconcile.sh`, "scan"], `cadence ${n}`, {
+    FM_INACTIVE_RECONCILE_SECS: "60",
+    FM_INACTIVE_CREW_STATE_BIN: `${home}/fakebin/fm-crew-state.sh`,
+  });
+  if (queued().length > 0) await wakeBranch("check: inactive-outcome");
+}
+
+await cadence(1);
+if (captains().length !== 1 || !captains()[0].summary.includes("child=held")) {
+  throw new Error(`the first cadence did not escalate the held outcome once: ${JSON.stringify(outcomes())}`);
+}
+for (let n = 2; n <= 5; n += 1) {
+  await cadence(n);
+  if (captains().length !== 1) {
+    throw new Error(`cadence ${n} re-escalated the unchanged held outcome: ${JSON.stringify(captains())}`);
+  }
+}
+
+run(["-c", '. "$1"; fm_wake_append check "$2" "$3"', "_", `${realRoot}/bin/fm-wake-lib.sh`,
+  "pr-check:held", "check: held PR https://example.test/o/r/pull/153 check ci/test turned red"], "red check row");
+await wakeBranch("check: held PR https://example.test/o/r/pull/153 check ci/test turned red");
+const escalated = captains();
+if (escalated.length !== 2 || !escalated[1].summary.includes("turned red")) {
+  throw new Error(`the red check did not reach the captain path: ${JSON.stringify(outcomes())}`);
+}
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify(escalated.map((row) => row.seq))) {
+  throw new Error(`the captain rows are not both awaiting the captain: ${unprocessedSeqs()}`);
+}
+process.exit(0);
+EOF
+

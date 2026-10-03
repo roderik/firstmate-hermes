@@ -1,0 +1,7 @@
+# bash bin/fm-supervision-engine-lib.sh enabled <lab>/config <primary>
+empty config                                  primary=claude  -> ENABLED
+empty config                                  primary=codex   -> disabled
+empty config                                  primary=cursor  -> disabled
+config/supervision-host-off present           primary=claude  -> disabled
+config/supervision-host present (opt-in)      primary=codex   -> ENABLED
+config/supervision-host present               primary=claude  -> ENABLED

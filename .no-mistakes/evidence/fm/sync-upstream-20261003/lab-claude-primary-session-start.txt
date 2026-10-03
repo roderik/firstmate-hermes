@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.288
+▝▜██████▀  Claude Opus 5.5 with medium effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/49bdd8e38f81/01M40BNBQPQFAH8XDVFTT7WMV2
+
+
+❯ This is a throwaway lab home. Do your normal firstmate session start, then report in one short line what supervision mode is active. Do not spawn any workers.
+
+  Searched memories
+
+● The digest isn't present, so I'll run session start myself.
+
+  Ran 1 shell command
+
+● Captain, the session started cleanly in the lab home with no work under way; supervision is attended and runs automatically at the end of each turn, with the supervision host on and away/quiet mode
+  off.
+
+✻ Churned for 40s · done 10:30 AM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /quiet
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent

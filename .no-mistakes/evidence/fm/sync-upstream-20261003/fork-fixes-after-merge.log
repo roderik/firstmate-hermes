@@ -1,0 +1,18 @@
+== fm-busy-state: 37 ok, 0 not ok, last: all fm-busy-state tests passed
+== fm-capability-check: 1 ok, 0 not ok, last: ok - capability preflight probes pool, ci, seed, and attachments inside the project and refuses absent declarations and hung probes
+== fm-fleet-watches: 1 ok, 0 not ok, last: ok - fleet watch configuration and checks
+== fm-herdr-session-cleanup: 30 ok, 0 not ok, last: all fm-herdr-session-cleanup tests passed
+== fm-pending-reply: 47 ok, 0 not ok, last: ok - all pending-reply tests passed
+== fm-pr-check-security: 14 ok, 1 not ok, last: not ok - teardown race: refused cleanup removed persisted authority
+== fm-pr-merge: 92 ok, 0 not ok, last: ok - a branch merge refuses under the lock when the away record is archived during preflight
+== fm-pr-state: 16 ok, 0 not ok, last: ok - argument and lookup refusals exit nonzero
+== fm-ready-check: 1 ok, 0 not ok, last: ok - project-declared ready checks gate pass, failure, timeout, worker edits, dirty worktrees, head mismatches, package scripts, and legacy projects
+== fm-review-in-author-workspace: 4 ok, 0 not ok, last: all fm-review-in-author-workspace tests passed
+== fm-review-route: 1 ok, 0 not ok, last: ok - review dispatch binds exact heads, deduplicates receipts, and caps ordinary rounds at two
+== fm-supervision-host: 44 ok, 0 not ok, last: rm: cannot remove '/tmp/fm-supervision-host.QWcKVy/hook-main-only/state': Directory not empty
+== fm-task-delivery: 29 ok, 0 not ok, last: # all fm-task-delivery tests passed
+== fm-teardown-endpoint-safety: 28 ok, 0 not ok, last: ok - Treehouse project locking still serializes two homes across the remote-seeded boundary
+== fm-timeout-lib: 17 ok, 0 not ok, last: ok - fm_timed_out accepts 124 and 137 and nothing else
+== fm-wake-queue: 3 ok, 1 not ok, last: not ok - presentation lock delayed the drain for 7s
+== fm-watch-harness-crash: 7 ok, 0 not ok, last: # all fm-watch-harness-crash tests passed
+== fm-watch-triage: 83 ok, 0 not ok, last: ok - the production default busy-turn-age bound is 3600s (5min under does not wedge, 66min over does)
