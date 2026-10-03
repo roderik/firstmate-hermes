@@ -261,7 +261,7 @@ def main():
             own = owner_of(pr, metas)
             # A registration whose ready check failed while CI was pending has
             # no merge watch; once green, wake its owner to report ready again.
-            if not own or metas[own].get("pr") != pr["url"] or os.path.exists(f"{STATE}/{own}.check.sh"):
+            if not own or metas.get(own, {}).get("pr") != pr["url"] or os.path.exists(f"{STATE}/{own}.check.sh"):
                 action = None
         if action is None:
             seen[key] = rec

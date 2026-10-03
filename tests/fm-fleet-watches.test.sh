@@ -246,6 +246,28 @@ sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
 sweep.main()
 assert not any("fm-send.sh" in args[0] for args in calls), "remote lane was steered locally"
 PY
+# A green PR owned only through a remote lane's status mention, with no local
+# metadata for that lane, is neither a crash nor a steer.
+rm -f "$work/home/state/.pr-stall-seen.json"
+fleet python3 - "$ROOT/bin/fm-pr-stall-sweep.py" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sweep", sys.argv[1])
+sweep = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sweep)
+url = "https://github.com/owner/repo/pull/7"
+pr = {"url": url, "number": 7, "baseRefName": "trunk", "headRefName": "feature/task-r", "isDraft": False,
+      "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewThreads": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"oid": "0123456789abcdef", "statusCheckRollup": {"state": "SUCCESS",
+        "contexts": {"nodes": [{"name": "Unit Tests", "conclusion": "SUCCESS"}]}}}}]}}
+sweep.REMOTE = {"task-r"}
+sweep.prs = lambda: [pr]
+sweep.owners = lambda: {}
+calls = []
+sweep.sh = lambda args, timeout=15: (calls.append(args) or (0, ""))
+sweep.main()
+assert not any("fm-send.sh" in args[0] for args in calls), "remote lane without metadata was steered"
+PY
+test -f "$work/home/state/.pr-stall-seen.json"
 rm -f "$work/home/state/task-r.status" "$work/home/state/.pr-stall-seen.json"
 # A registered PR that turns green without an armed merge poll (its ready
 # check failed while CI was pending) wakes its owner to report ready again.
