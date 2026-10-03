@@ -14,8 +14,10 @@
 # server the account's own environment.
 # The guard starts the server through a small Perl POSIX::setsid wrapper before
 # execing herdr, because Herdr requires getsid(0) == getpid() for saved-machine
-# readiness. The server remains foreground-owned by launchd; setsid changes only
-# its session identity and does not daemonize it.
+# readiness. When the job process already leads a process group or session,
+# setsid(2) refuses it, so the wrapper forks a child that becomes the session
+# leader, forwards termination signals to it, and exits with its status. Either
+# way the server stays foreground-supervised by launchd and is not daemonized.
 #
 # Decision, made once per launch (exit codes matter under SuccessfulExit=false:
 # 0 tells launchd the job is done until something restarts it, non-zero asks
@@ -69,7 +71,13 @@ status_running() { # <status-json>
 start_server() {
   log "starting the herdr server for session $SESSION as its own session leader (pid $$)"
   command -v perl >/dev/null 2>&1 || { log "perl is required for portable setsid startup"; exit 1; }
-  exec perl -MPOSIX -e 'POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV or die "exec: $!\n"' \
+  exec perl -MPOSIX -e '
+    if (POSIX::setsid() == $$) { exec @ARGV or die "exec: $!\n" }
+    defined(my $child = fork) or die "fork: $!\n";
+    if (!$child) { POSIX::setsid() == $$ or die "setsid: $!\n"; exec @ARGV or die "exec: $!\n" }
+    $SIG{$_} = sub { kill $_[0], $child } for qw(TERM INT HUP QUIT);
+    1 while waitpid($child, 0) == -1 && $!{EINTR};
+    exit(($? & 127) ? 128 + ($? & 127) : $? >> 8)' \
     "$HERDR_BIN" server --session "$SESSION"
 }
 

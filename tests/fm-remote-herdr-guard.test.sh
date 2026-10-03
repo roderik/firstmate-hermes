@@ -92,6 +92,7 @@ case "$*" in
     ;;
   "server --session "*)
     printf 'pid=%s session=%s sid=%s\n' "$$" "${3:-}" "$(ps -o sid= -p "$$" | tr -d ' ')" > "$FM_FAKE_STATE/started"
+    [ ! -f "$FM_FAKE_STATE/server-exit" ] || exit "$(cat "$FM_FAKE_STATE/server-exit")"
     ;;
 esac
 exit 0
@@ -216,6 +217,18 @@ assert_started "the guard did not start the server when none owned the session"
 assert_not_contains "$(herdr_calls)" 'server stop' "the guard stopped something when no server owned the session"
 assert_contains "$GUARD_OUT" "no server owns session $SESSION" "the guard did not report the empty session"
 pass "an empty session is started inside the launch agent"
+
+# launchd may hand the guard a pid that already leads its process group or
+# session, where setsid(2) refuses; the server must still lead its own session
+# and the job must exit with the server's status.
+for leader in "process-group POSIX::setpgid(0, 0)" "session POSIX::setsid()"; do
+  new_case stopped
+  printf '7\n' > "$CASE_STATE/server-exit"
+  guard "$PERL" -MPOSIX -e "${leader#* } or die \"\$!\\n\"; exec @ARGV or die"
+  expect_code 7 "$GUARD_RC" "the guard started as a ${leader%% *} leader did not exit with the server's status"
+  assert_started "the guard started as a ${leader%% *} leader did not start the server"
+done
+pass "a guard that already leads its process group or session still starts a session-leader server"
 
 # --- an Aqua-born owner is left alone ----------------------------------------
 
